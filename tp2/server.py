@@ -39,18 +39,17 @@ def service1_aux(socket, remetente, mensagem):
 
     socket.sendto("Eu também :)\n".encode(), remetente)
 
-def service1(server_ip, server_port):
+def service1(server_ip, server_port, wg):
     try:
         # Bind the socket
         server_socket = bind_socket(server_ip, server_port)
 
         # While loop to be able to listen for more than one message
-        # Threads to be able to process more packets at the same time
-        while True:
+        while not wg.is_set():
             data, remetente = server_socket.recvfrom(1024)
             threading.Thread(target=service1_aux, args=(server_socket, remetente, data.decode())).start()
 
-    # Handle with exceptions and close the socket at the end of the code block
+        # Handle with exceptions and close the socket at the end of the code block
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
@@ -58,7 +57,7 @@ def service1(server_ip, server_port):
             server_socket.close()
 
 # Service 2 auxiliary function
-def service2_aux(socket, remetente, mensagem, db):
+def service2_aux(socket, remetente, mensagem, db, wg):
     with db.lock:
         del db.dados["coisas"]
         del db.dados["redes"]
@@ -69,18 +68,20 @@ def service2_aux(socket, remetente, mensagem, db):
 
     socket.sendto("SUCESIUM\n".encode(), remetente)
 
-def service2(server_ip, server_port, db):
+    # Set the wg event to signal thread termination
+    wg.set()
+
+def service2(server_ip, server_port, db, wg):
     try:
         # Bind the socket
         server_socket = bind_socket(server_ip, server_port)
 
         # While loop to be able to listen for more than one message
-        # Threads to be able to process more packets at the same time
-        while True:
+        while not wg.is_set():
             data, remetente = server_socket.recvfrom(1024)
-            threading.Thread(target=service2_aux, args=(server_socket, remetente, data.decode(), db)).start()
+            threading.Thread(target=service2_aux, args=(server_socket, remetente, data.decode(), db, wg)).start()
 
-    # Handle with exceptions and close the socket at the end of the code block
+        # Handle with exceptions and close the socket at the end of the code block
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
@@ -88,12 +89,19 @@ def service2(server_ip, server_port, db):
             server_socket.close()
 
 # Service 3 function
-def service3(db):
+def service3(db, wg):
     while True:
         with db.lock:
             for key, value in db.dados.items():
                 time.sleep(2)
                 print(f"Chave: {key} || Valor inicial: {value} || Valor final: {db.dados[key]}\n")
+        
+        # Release the lock briefly to allow other threads to access the database
+        time.sleep(1)  # Adjust the sleep time as needed
+
+        # If you want to terminate thread 3 at some point, check if wg is set and exit the loop
+        if wg.is_set():
+            break
 
 if __name__ == "__main__":
     db = Database()
@@ -102,16 +110,23 @@ if __name__ == "__main__":
     wg = threading.Event()
 
     server_ip, server_port = rec_args(1)
-    threads.append(threading.Thread(target=service1, args=(server_ip, server_port)))
+    threads.append(threading.Thread(target=service1, args=(server_ip, server_port, wg)))
     
     server_ip, server_port = rec_args(2)
-    threads.append(threading.Thread(target=service2, args=(server_ip, server_port, db)))
+    threads.append(threading.Thread(target=service2, args=(server_ip, server_port, db, wg)))
 
     # Start the service3 function in a separate thread
-    threads.append(threading.Thread(target=service3, args=(db,)))
+    threads.append(threading.Thread(target=service3, args=(db, wg)))
 
     for thread in threads:
         thread.start()
+
+    # This is just an example; you can set the wg event when you want to terminate the threads
+    # For example, when you decide to exit the program
+    # To run the threads in parallel, you don't need to set the event immediately
+    # You can set it when you want the threads to terminate
+    # For parallel execution, you can comment out the line below:
+    # wg.set()
 
     for thread in threads:
         thread.join()
