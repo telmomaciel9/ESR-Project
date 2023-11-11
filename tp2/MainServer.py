@@ -1,7 +1,6 @@
 # main_server.py
 import sys
 import threading
-from ServerTemplate import Server
 from TCPServer import TCPServer
 from UDPServer import UDPServer
 from bootstrap import Bootstrap

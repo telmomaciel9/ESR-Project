@@ -21,7 +21,7 @@ class Client:
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        println("Usage: python client.py <server_ip:server_port>")
+        print("Usage: python client.py <server_ip:server_port>")
         sys.exit(1)
 
     aux = sys.argv[1].split(":")

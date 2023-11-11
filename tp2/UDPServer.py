@@ -9,6 +9,7 @@ class UDPServer:
         self.server_port = server_port
         self.wg = threading.Event()
         self.threads = []
+
     def create_and_bind_socket(self):
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -37,26 +38,5 @@ class UDPServer:
         except Exception as e:
             print(f"UDP : An error occurred: {e}")
         finally:
-            if server_socket:
-                server_socket.close()
-
-    def start(self):
-        try:
-            server_socket = self.create_and_bind_socket()
-            print(f"UDP : Listening on {self.server_ip}:{self.server_port}")
-
-            while not self.wg.is_set():
-                data, remetente = server_socket.recvfrom(1024)
-                self.threads.append(client_socket)
-
-                thread = threading.Thread(target=self.tcp_aux, args=(client_socket, client_address))
-                thread.start()
-
-        except Exception as e:
-            print(f"TCP : An error occurred in start function: {e}")
-        finally:
-            for client_socket in self.threads:
-                client_socket.close()
-
             if server_socket:
                 server_socket.close()
