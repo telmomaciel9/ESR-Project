@@ -35,24 +35,46 @@ class Bootstrap:
         except socket.error as e:
             print(f"Bootstrap : Socket Error: {e}")
 
-    '''
-    def bootstrap_aux(self,client_socket,client_address):
-        if(client_address[0] in self.dic_with_neighbours.keys()):
-            data_json = json.dumps(self.dic_with_neighbours[client_address[0]])
-            client_socket.send(data_json.encode())
-            #client_socket.close()
-    
-    def bootstrap(self,client_socket,client_address):
-        try:
-            while not self.wg.is_set():
-                
-                self.bootstrap_aux(client_socket, client_address)
-        except Exception as e:
-            print(f"An error occurred while handling client: {e}")
-        finally:
-            client_socket.close()
-    '''
 
+
+    def send_data(self, client_socket, client_address):
+        while not self.wg.is_set():
+            # Implement your logic for sending data here
+            time.sleep(2)
+            data_to_send = "Not a Node"
+            if(client_address[0] in self.dic_with_neighbours.keys()):
+                data_to_send = json.dumps(self.dic_with_neighbours[client_address[0]])
+            client_socket.send(data_to_send.encode())
+
+    def receive_data(self, client_socket, client_address):
+        while not self.wg.is_set():
+            # Implement your logic for receiving data here
+            data = client_socket.recv(1024)
+            if not data:
+                break
+            print(f"Bootstrap: Received message from {client_address}: {data.decode()}")
+
+
+
+    def bootstrap(self, client_socket, client_address):
+        print(f"BOOTSTRAP: Connected to: {client_address}")
+        try:
+            send_thread = threading.Thread(target=self.send_data, args=(client_socket, client_address))
+            receive_thread = threading.Thread(target=self.receive_data, args=(client_socket, client_address))
+
+            send_thread.start()
+            receive_thread.start()
+
+            send_thread.join()
+            receive_thread.join()
+
+        except Exception as e:
+            print(f"BOOTSTRAP: An error occurred in the bootstrap function: {e}")
+        finally:
+            print(f"BOOTSTRAP: Connection closed with {client_address}")
+            client_socket.close()
+
+    '''
     def bootstrap(self, client_socket, client_address):
         print(f"BOOTSTRAP: Connected to: {client_address}")
         try:
@@ -76,13 +98,14 @@ class Bootstrap:
             print(f"BOOTSTRAP : Connection closed with {client_address}")
             client_socket.close()
             #self.clients.remove(client_socket)
+    '''
 
     def start(self):
         try:
             server_socket = self.create_and_bind_socket()
             server_socket.listen(5)
-            print(f"BOOTSTRAP : Estou a ouvir no ip: {self.bootstrap_ip} e na porta: {self.bootstrap_port} ")
-            
+            print(f"BOOTSTRAP: Listening on {self.bootstrap_ip}:{self.bootstrap_port}")
+
             self.read_neighbours_file("bootstrapteste.json")
 
             while not self.wg.is_set():
@@ -91,10 +114,8 @@ class Bootstrap:
 
                 for thread in self.threads:
                     thread.start()
-                for thread in self.threads:
-                    thread.join()
         except Exception as e:
-            print(f"BOOTSTRAP : An error occurred in the start function: {e}")
+            print(f"BOOTSTRAP: An error occurred in the start function: {e}")
         finally:
             if server_socket:
                 server_socket.close()

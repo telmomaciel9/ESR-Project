@@ -16,7 +16,8 @@ class TCPServer:
             return server_socket
         except socket.error as e:
             print(f"TCP : Socket Error: {e}")
-
+    
+    '''
     def tcp_aux(self, client_socket, client_address):
         print(f"TCP : Connected to: {client_address}")
         try:
@@ -36,6 +37,25 @@ class TCPServer:
             print(f"TCP : Connection closed with {client_address}")
             client_socket.close()
             self.clients.remove(client_socket)
+    '''
+
+    def send_message(self, client_socket, message):
+        try:
+            client_socket.send(message)
+        except Exception as e:
+            print(f"TCP : An error occurred while sending message: {e}")
+
+    def receive_messages(self, client_socket):
+        try:
+            while not self.wg.is_set():
+                data = client_socket.recv(1024)
+                if not data:
+                    break
+
+                print(f"TCP : Received message from client: {data}")
+                # Handle the received message as needed
+        except Exception as e:
+            print(f"TCP : An error occurred while receiving messages: {e}")
 
     def start(self):
         try:
@@ -47,8 +67,11 @@ class TCPServer:
                 client_socket, client_address = server_socket.accept()
                 self.clients.add(client_socket)
 
-                thread = threading.Thread(target=self.tcp_aux, args=(client_socket, client_address))
-                thread.start()
+                receive_thread = threading.Thread(target=self.receive_messages, args=(client_socket,))
+                send_thread = threading.Thread(target=self.send_message, args=(client_socket, b"Welcome to the server!\n"))
+
+                receive_thread.start()
+                send_thread.start()
 
         except Exception as e:
             print(f"TCP : An error occurred: {e}")
@@ -58,7 +81,3 @@ class TCPServer:
 
             if server_socket:
                 server_socket.close()
-
-if __name__ == "__main__":
-    tcp_server = TCPServer("127.0.0.1", 8888)
-    tcp_server.start()

@@ -1,4 +1,3 @@
-# udp_server.py
 import socket
 import threading
 import time
@@ -18,22 +17,37 @@ class UDPServer:
         except socket.error as e:
             print(f"UDP : Socket Error: {e}")
 
-    def udp_aux(self, socket, remetente, mensagem):
-        for i in range(5):
-            time.sleep(2)
-            print(f"UDP : Recebi uma mensagem do {remetente}: {mensagem}\n")
-        socket.sendto("UDP : Eu também :)\n".encode(), remetente)
+    def udp_receive(self, socket):
+        try:
+            while not self.wg.is_set():
+                data, remetente = socket.recvfrom(1024)
+                print(f"UDP : Received message from {remetente}: {data.decode()}\n")
+                # Process the received message as needed
+        except Exception as e:
+            print(f"UDP : An error occurred while receiving messages: {e}")
+
+    def udp_send(self, socket, remetente, message):
+        try:
+            for i in range(5):
+                time.sleep(2)
+                print(f"UDP : Sending message to {remetente}: {message}\n")
+                socket.sendto(message.encode(), remetente)
+        except Exception as e:
+            print(f"UDP : An error occurred while sending messages: {e}")
 
     def start(self):
         try:
             server_socket = self.create_and_bind_socket()
-            print(f"UDP : Estou a ouvir no ip: {self.server_ip} e na porta: {self.server_port} ")
+            print(f"UDP : Listening on {self.server_ip}:{self.server_port} ")
 
             while not self.wg.is_set():
                 data, remetente = server_socket.recvfrom(1024)
-                thread = threading.Thread(target=self.udp_aux, args=(server_socket, remetente, data.decode()))
-                self.threads.append(thread)
-                thread.start()
+
+                receive_thread = threading.Thread(target=self.udp_receive, args=(server_socket,))
+                send_thread = threading.Thread(target=self.udp_send, args=(server_socket, remetente, "UDP : Eu também :)"))
+
+                receive_thread.start()
+                send_thread.start()
 
         except Exception as e:
             print(f"UDP : An error occurred: {e}")
