@@ -1,13 +1,16 @@
 import socket
 import threading
-import time
 
 class TCPServer:
-    def __init__(self, server_ip, server_port):
+    def __init__(self, server_ip, server_port, bootstrap_ip, bootstrap_port, is_bootstrap):
         self.server_ip = server_ip
         self.server_port = server_port
+        self.bootstrap_ip = bootstrap_ip
+        self.bootstrap_port = int(bootstrap_port)
         self.wg = threading.Event()
         self.clients = set()
+        self.is_bootstrap = is_bootstrap
+        self.my_neighbours=set()
 
     def create_and_bind_socket(self):
         try:
@@ -15,35 +18,13 @@ class TCPServer:
             server_socket.bind((self.server_ip, self.server_port))
             return server_socket
         except socket.error as e:
-            print(f"TCP : Socket Error: {e}")
-    
-    '''
-    def tcp_aux(self, client_socket, client_address):
-        print(f"TCP : Connected to: {client_address}")
-        try:
-            while not self.wg.is_set():
-                data = client_socket.recv(1024)
-                if not data:
-                    break
-
-                for i in range(5):
-                    time.sleep(2)
-                    print(f"TCP : Received message from {client_address}: {data}")
-                    response = b"TCP : Server received your message: " + data
-                client_socket.send(response)
-        except Exception as e:
-            print(f"TCP : An error occurred: {e}")
-        finally:
-            print(f"TCP : Connection closed with {client_address}")
-            client_socket.close()
-            self.clients.remove(client_socket)
-    '''
+            print(f"TCP: Socket Error: {e}")
 
     def send_message(self, client_socket, message):
         try:
-            client_socket.send(message)
+            client_socket.send(message.encode())
         except Exception as e:
-            print(f"TCP : An error occurred while sending message: {e}")
+            print(f"TCP: An error occurred while sending message: {e}")
 
     def receive_messages(self, client_socket):
         try:
@@ -52,16 +33,43 @@ class TCPServer:
                 if not data:
                     break
 
-                print(f"TCP : Received message from client: {data}")
+                print(f"TCP: Received message from client: {data}")
                 # Handle the received message as needed
         except Exception as e:
-            print(f"TCP : An error occurred while receiving messages: {e}")
+            print(f"TCP: An error occurred while receiving messages: {e}")
 
+    def connect_to_bootstrap(self):
+        try:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
+            client_socket.connect((self.bootstrap_ip, self.bootstrap_port))
+            
+            initial_message = "Hello Bootstrap"
+            self.send_message(client_socket, initial_message)
+
+            data = client_socket.recv(1024)
+            
+            decoded_data = data.decode()
+
+            self.my_neighbours=decoded_data
+            print(self.my_neighbours)
+
+            self.send_message(client_socket,"3")
+
+            
+        except Exception as e:
+            print(f"TCP: An error occurred while connecting to bootstrap: {e}")
+        finally:
+            if client_socket:
+                client_socket.close()
     def start(self):
         try:
             server_socket = self.create_and_bind_socket()
             server_socket.listen(5)
-            print(f"TCP : Listening on {self.server_ip}:{self.server_port}")
+            print(f"TCP: Listening on {self.server_ip}:{self.server_port}")
+
+            if not self.is_bootstrap:
+                self.connect_to_bootstrap()
 
             while not self.wg.is_set():
                 client_socket, client_address = server_socket.accept()
@@ -74,7 +82,7 @@ class TCPServer:
                 send_thread.start()
 
         except Exception as e:
-            print(f"TCP : An error occurred: {e}")
+            print(f"TCP: An error occurred: {e}")
         finally:
             for client_socket in self.clients:
                 client_socket.close()
