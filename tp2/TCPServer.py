@@ -2,9 +2,7 @@ import socket
 import threading
 
 class TCPServer:
-    def __init__(self, server_ip, server_port, bootstrap_ip, bootstrap_port, is_bootstrap):
-        self.server_ip = server_ip
-        self.server_port = server_port
+    def __init__(self, bootstrap_ip, bootstrap_port, is_bootstrap):
         self.bootstrap_ip = bootstrap_ip
         self.bootstrap_port = int(bootstrap_port)
         self.wg = threading.Event()
@@ -15,9 +13,11 @@ class TCPServer:
     def create_and_bind_socket(self):
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.bind((self.server_ip, self.server_port))
+            #host_name = server_socket   
+            #print(f"ahhahahahahahahahah{socket.gethostbyname(socket.gethostname())}")
+            server_socket.bind(("0.0.0.0",4000))
             return server_socket
-        except socket.error as e:
+        except socket.error as e:   
             print(f"TCP: Socket Error: {e}")
 
     def send_message(self, client_socket, message):
@@ -64,9 +64,11 @@ class TCPServer:
                 client_socket.close()
     def start(self):
         try:
+
             server_socket = self.create_and_bind_socket()
+            #print(127.0.0.1 )
             server_socket.listen(5)
-            print(f"TCP: Listening on {self.server_ip}:{self.server_port}")
+            #print(f"TCP: Listening on {self.server_ip}:{self.server_port}")
 
             if not self.is_bootstrap:
                 self.connect_to_bootstrap()

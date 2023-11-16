@@ -3,16 +3,15 @@ import threading
 import time
 
 class UDPServer:
-    def __init__(self, server_ip, server_port):
-        self.server_ip = server_ip
-        self.server_port = server_port
+    def __init__(self):
+
         self.wg = threading.Event()
         self.threads = []
 
     def create_and_bind_socket(self):
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            server_socket.bind((self.server_ip, self.server_port))
+            server_socket.bind(("0.0.0.0", 5000))
             return server_socket
         except socket.error as e:
             print(f"UDP : Socket Error: {e}")
@@ -38,7 +37,7 @@ class UDPServer:
     def start(self):
         try:
             server_socket = self.create_and_bind_socket()
-            print(f"UDP : Listening on {self.server_ip}:{self.server_port} ")
+            #print(f"UDP : Listening on {self.server_ip}:{self.server_port} ")
 
             while not self.wg.is_set():
                 data, remetente = server_socket.recvfrom(1024)
