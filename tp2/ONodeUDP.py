@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 
-class UDPServer:
+class ONodeUDP:
     def __init__(self):
 
         self.wg = threading.Event()
