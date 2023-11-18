@@ -62,49 +62,44 @@ class ONodeTCP:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         attempt_count = 0
 
-        while attempt_count < 3:  # Adjust the maximum number of attempts as needed
-            try:
-                client_socket.connect((ip, port))
+        #while attempt_count < 3:  # Adjust the maximum number of attempts as needed
+        client_socket.connect((ip, port))
 
-                if purpose == 1:
-                    print(f"\nTCP: Conectei-me a {ip}")
-                    initial_message = "Hello Bootstrap"
-                    #self.send_queue.put((initial_message, len(self.client_sockets)))
-                    client_socket.send(initial_message.encode())
-                    print("\nTCP : Enviei uma mensagem ao bootstrap")
-
-                    data = client_socket.recv(1024)
-                    decoded_data = data.decode()
-                    print(f"\nTCP: Recebi esta mensagem do bootstrap: {decoded_data}")
-                    self.my_neighbours = json.loads(decoded_data)
-                    client_socket.send("3".encode())
-                    print(f"\nTCP: Fechei a conexão com o bootstrap")
-                    break
-                    #self.send_queue(("3", len(self.client_sockets)))
-
-                elif purpose == 2:
-                    initial_message = "ola vizinho!!"
-                    client_socket.send(initial_message.encode())
-                    # self.send_queue.put((initial_message, len(self.client_sockets)))
-                    data = client_socket.recv(1024)
-                    decoded_data = data.decode()
-                    print(decode_data)
-
-                self.client_sockets.append(client_socket)
-                break  # Exit the loop if the connection is successful
-            #break
-            except Exception as e:
-                print(f"\nTCP: An error occurred while sending a message to another node: {e}")
-                attempt_count += 1
-                print(f"\nRetrying connection to {ip}:{port}... (Attempt {attempt_count})")
-                time.sleep(2)  # Adjust the delay between attempts as needed
-
-            finally:
-                if not client_socket._closed:
-                    client_socket.close()
-
-        if attempt_count >= 3:
-            print(f"\nFailed to establish a connection to {ip}:{port} after multiple attempts.")
+        try:
+            if purpose == 1:
+                print(f"\nTCP: Conectei-me a {ip}")
+                initial_message = "Hello Bootstrap"
+                #self.send_queue.put((initial_message, len(self.client_sockets)))
+                client_socket.send(initial_message.encode())
+                print("\nTCP : Enviei uma mensagem ao bootstrap")
+                data = client_socket.recv(1024)
+                decoded_data = data.decode()
+                print(f"\nTCP: Recebi esta mensagem do bootstrap: {decoded_data}")
+                self.my_neighbours = json.loads(decoded_data)
+                client_socket.send("3".encode())
+                print(f"\nTCP: Fechei a conexão com o bootstrap")
+                
+                #self.send_queue(("3", len(self.client_sockets)))
+            elif purpose == 2:
+                initial_message = "ola vizinho!!"
+                client_socket.send(initial_message.encode())
+                # self.send_queue.put((initial_message, len(self.client_sockets)))
+                data = client_socket.recv(1024)
+                decoded_data = data.decode()
+                print(decode_data)
+            self.client_sockets.append(client_socket)
+            #break  # Exit the loop if the connection is successful
+        #break
+        except Exception as e:
+            print(f"\nTCP: An error occurred while sending a message to another node: {e}")
+            attempt_count += 1
+            print(f"\nRetrying connection to {ip}:{port}... (Attempt {attempt_count})")
+            time.sleep(2)  # Adjust the delay between attempts as needed
+        finally:
+            if not client_socket._closed:
+                client_socket.close()
+        #if attempt_count >= 3:
+        #    print(f"\nFailed to establish a connection to {ip}:{port} after multiple attempts.")
 
 
 
@@ -127,6 +122,7 @@ class ONodeTCP:
                     #self.process_queue.put(("ola viz",clientSocket))
                 '''
             while not self.wg.is_set():
+                print("ola")
                 client_socket, client_address = self.server_socket.accept()
                 self.clients.add(client_socket)
 
