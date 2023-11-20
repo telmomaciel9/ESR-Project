@@ -32,35 +32,37 @@ class Bootstrap:
             print(f"Bootstrap : Socket Error: {e}")
 
     def send_messages(self,client_address):
-        while not self.wg.is_set():
-            with self.lock:
-                response = ""
-                if not self.receive_queue.empty():
-                    data, client_socket = self.receive_queue.get()
-                    decoded_data = data.decode()
+        try:
+            while not self.wg.is_set():
+                with self.lock:
+                    response = ""
+                    if not self.receive_queue.empty():
+                        data, client_socket = self.receive_queue.get()
+                        decoded_data = data.decode()
 
-                    if decoded_data == "1":
-                        for key, value in self.dic_with_neighbours.items():
-                            for k in key:
-                                if client_address[0] == k:
-                                    if isinstance(value, list):
-                                        response = json.dumps(value)
-                                    else:
-                                        response = str(value)
-                                    break
-                    else:
-                        response = "Not a node"
+                        if decoded_data == "1":
+                            for key, value in self.dic_with_neighbours.items():
+                                for k in key:
+                                    if client_address[0] == k:
+                                        if isinstance(value, list):
+                                            response = json.dumps(value)
+                                        else:
+                                            response = str(value)
+                                        break
+                        else:
+                            response = "Not a node"
 
-                    if decoded_data == "3":
-                        print(f"\nBOOTSTRAP: Closing socket")
-                        response = "4"
+                        if decoded_data == "3":
+                            print(f"\nBOOTSTRAP: Closing socket")
+                            #response = "4"
+                            #client_socket.send(response.encode())
+                            #client_socket.close()
+                            #self.connected_clients.remove(client_address)
+                            return
+
                         client_socket.send(response.encode())
-                        client_socket.close()
-                        self.connected_clients.remove(client_address)
-                        return
-                        
-                    client_socket.send(response.encode())
-
+        except Exception as e:
+            print(f"\nBOOTSTRAP: An error occurred in send_messages: {e}")    
     def receive_messages(self, client_socket,client_address):
         try:
             while not self.wg.is_set():
@@ -81,25 +83,21 @@ class Bootstrap:
         print(f"\nBOOTSTRAP: Connected to: {client_address}")
         self.connected_clients.add(client_address)
         try:
-            while not self.wg.is_set():
-                if client_address not in self.connected_clients:
-                    print(f"\nBOOTSTRAP: Client {client_address} is no longer connected. Exiting.")
-                    break
+            receive_thread = threading.Thread(target=self.receive_messages, args=(client_socket, client_address))
+            send_thread = threading.Thread(target=self.send_messages, args=(client_address,))
 
-                receive_thread = threading.Thread(target=self.receive_messages, args=(client_socket, client_address))
-                send_thread = threading.Thread(target=self.send_messages, args=(client_address,))
+            receive_thread.start()
+            send_thread.start()
 
-                receive_thread.start()
-                send_thread.start()
-
-                receive_thread.join()
-                send_thread.join()
+            # Join threads after starting all of them
+            receive_thread.join()
+            send_thread.join()
 
         except Exception as e:
             print(f"\nBOOTSTRAP: An error occurred in the bootstrap function: {e}")
         finally:
             print(f"\nBOOTSTRAP: Connection closed with {client_address}")
-            self.wg.set()
+            #self.wg.set()
             client_socket.close()
 
     def start(self):
@@ -110,12 +108,16 @@ class Bootstrap:
 
             while not self.wg.is_set():
                 client_socket, client_address = server_socket.accept()
+
                 if client_address not in self.connected_clients:
                     print(f"\nBOOTSTRAP: New connection from {client_address}")
                     thread = threading.Thread(target=self.bootstrap, args=(client_socket, client_address))
+                    self.threads.append(thread)
                     thread.start()
 
-            #thread.join()
+            # Join all threads after the loop
+            for thread in self.threads:
+                thread.join()
 
         except Exception as e:
             print(f"BOOTSTRAP: An error occurred in the start function: {e}")
