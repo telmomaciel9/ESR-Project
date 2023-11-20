@@ -3,6 +3,7 @@ import threading
 import queue
 import json
 import time
+from Message import Message
 
 class ONodeTCP:
     def __init__(self, bootstrap_ip, is_bootstrap):
@@ -17,66 +18,71 @@ class ONodeTCP:
         self.lock = threading.Lock()
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_sockets = [] 
-
-    #Função para dar bind ao socket do servidor
-    def bind_socket(self):
         try:
             self.server_socket.bind(("0.0.0.0",4000))
         except socket.error as e:   
-            print(f"TCP: Socket Error on Binding: {e}")
+            print(f"\nTCP : Socket Error on Binding: {e}")
 
-    #Função para receber mensagens de um dado socket.
-    #Ao receber, coloca na queue de mensagens recebidas para serem futuramente processadas
+
     def receive_messages(self):
-        try:
-            client_socket, client_address = self.server_socket.accept()
-            while True:
-                data = client_socket.recv(1024)
-                client_address = client_socket.getpeername()
-                print(f"TCP : Received this message from {client_address}: {data}")
-                if not data:
-                    break
-                with self.lock:
-                    self.receive_queue.put((data, client_socket))
-        except Exception as e:
-            print(f"TCP: An error occurred while receiving messages: {e}")
+        while True:
+            try:
+                client_socket, client_address = self.server_socket.accept()
+                print("ola")
+                self.connected_clients.add(client_socket)
+                while True:
+                    data = client_socket.recv(1024)
+                    client_address = client_socket.getpeername()
+                    print(f"\nTCP : Received this message from {client_address}: {data}")
+                    if not data:
+                        break
+                    with self.lock:
+                        self.receive_queue.put((data, client_socket))
+            except Exception as e:
+                print(f"\nTCP : An error occurred while receiving messages: {e}")
 
-    #Função para processar as mensagens que estão na queue de mensagens recebidas
-    #Apos o processamento, ela coloca as mensagens já processadas numa queue de mensagens processadas 
-    #para depois poderem ser enviadas 
     def process_messages(self):
         while True:
             with self.lock:
                 if not self.receive_queue.empty():
                     data, client_socket = self.receive_queue.get()
-                    # Simulate processing the message
-                    if data == "ola vizinho!!":
-                        print(f"Recebi esta mensagem ")
-                    #processed_message = f"Node {self.node_id}: Processed: {data.decode()}"
-                    processed_message = "slakflasflasfkasjfkasljfawklj"
-                    self.process_queue.put((processed_message, client_socket))
+                    try:
+                        # Deserialize the JSON data into a Python object
+                        message_data = json.loads(data.decode())
 
-    #Função para enviar as mensagens que estão na queue de mensagens já processadas
+                        if message_data["id"] == "2" or message_data["id"] == "3":
+                            info = message_data["data"]
+                            src = message_data["src"]
+                            print(f"Recebi esta mensagem do {src} : {info}")
+
+                            mensagem = Message("4", client_socket.getsockname()[0], client_socket.getpeername(),
+                                               "Recebi a tua mensagem, vou terminar a conexão")
+
+                            self.process_queue.put((json.dumps(mensagem.__dict__), client_socket))  # Fix the typo here
+
+                    except json.JSONDecodeError as e:
+                        print(f"\nTCP : Error decoding JSON data: {e}")
+                    except Exception as e:
+                        print(f"\nTCP : Error in processing messages: {e}")
+
+
     def send_messages(self):
         while True:
             with self.lock:
                 if not self.process_queue.empty():
-                    processed_message, client_socket = self.process_queue.get()
-                    self_ip = client_socket.getsockname()[0]
-                    client_address = client_socket.getpeername()
-                    # Simulate sending the message
-                    sent_message = f"Node {self_ip}: Sent to {client_address}: {processed_message}"
+                    data, client_socket = self.process_queue.get()
                     try:
-                        client_socket.send(sent_message.encode())
-                        print
+                        message_data = json.loads(data)
+                        destino = message_data["dest"]
+                        client_socket.send(data.encode())
+                        print(f"\nTCP : Send this message: {data} to: {destino}")
+
+                    except json.JSONDecodeError as e:
+                        print(f"\nTCP : Error decoding JSON data: {e}")
                     except Exception as e:
-                        print(f"Error sending message to {client_address} in the send_messages function")
+                        print(f"\nTCP : Error sending message in the send_messages function: {e}")
 
 
-
-
-    #Função que basicamente está a atuar como um cliente
-    #De momento tem para caso seja para conectar com o bootstrap ou então os seus vizinhos
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         attempt_count = 0
@@ -86,98 +92,72 @@ class ONodeTCP:
         try:
             client_socket.connect((ip, port))
             if purpose == 1:
-                print(f"\nTCP: Conectei-me a {ip}")
-                initial_message = "1"
-                #self.send_queue.put((initial_message, len(self.client_sockets)))
-                client_socket.send(initial_message.encode())
-                print("\nTCP : Enviei uma mensagem ao bootstrap")
-                data = client_socket.recv(1024)
-                decoded_data = data.decode()
-                print(f"\nTCP: Recebi esta mensagem do bootstrap: {decoded_data}")
-                self.my_neighbours = json.loads(decoded_data)
-                client_socket.send("3".encode())
-                print(f"\nTCP: Fechei a conexão com o bootstrap")
-                #data = client_socket.recv(1024)
-                #decoded_data = data.decode()
-                #print(f"\nTCP: Recebi esta mensagem do bootstrap: {decoded_data}")
-                #if(decoded_data=="4"):
-                #    print("\n")
-                #self.send_queue(("3", len(self.client_sockets)))
-            elif purpose == 2:
-                initial_message = "ola vizinh!!"
-                #self.process_queue((initial_message,client_socket))
-                client_socket.send(initial_message.encode())
-                # self.send_queue.put((initial_message, len(self.client_sockets)))
-                #data = client_socket.recv(1024)
-                #decoded_data = data.decode()
-                #print(decoded_data)
+                messagem = Message("1",client_socket.getsockname()[0],client_socket.getpeername(),client_socket.getsockname()[0])
+                self.process_queue.put((json.dumps(messagem.__dict__),client_socket))
+
+            #elif purpose == 2:
+            #    initial_message = "ola vizinh!!"
+            #    #self.process_queue((initial_message,client_socket))
+            #    client_socket.send(initial_message.encode())
+            #    # self.send_queue.put((initial_message, len(self.client_sockets)))
+            #    #data = client_socket.recv(1024)
+            #    #decoded_data = data.decode()
+            #    #print(decoded_data)
             self.client_sockets.append(client_socket)
             #break  # Exit the loop if the connection is successful
         #break
         except Exception as e:
             print(f"\nTCP: An error occurred while sending a message in connect_to_other_node function in ip {ip}: {e}")
             attempt_count += 1
-            print(f"\nRetrying connection to {ip}:{port}... (Attempt {attempt_count})")
+            print(f"\nTCP : Retrying connection to {ip}:{port}... (Attempt {attempt_count})")
             time.sleep(2)  # Adjust the delay between attempts as needed
-        finally:
-            if not client_socket._closed:
-                client_socket.close()
+        #finally:
+        #    if not client_socket._closed:
+        #        client_socket.close()
         #if attempt_count >= 3:
         #    print(f"\nFailed to establish a connection to {ip}:{port} after multiple attempts.")
 
 
 
     def start(self):
-        try:
-            #Dar bind ao self.server_socket de forma a que ele esteja disponível a ouvir
-            self.bind_socket()
-            self.server_socket.listen(5)
-            
+            try:
+                self.server_socket.listen(5)
 
-            while not self.wg.is_set():
+                while not self.wg.is_set():
 
-                receive_thread = threading.Thread(target=self.receive_messages, args=())
-                process_thread = threading.Thread(target=self.process_messages, args=())
-                send_thread = threading.Thread(target=self.send_messages, args=())
+                    receive_thread = threading.Thread(target=self.receive_messages, args=())
+                    process_thread = threading.Thread(target=self.process_messages, args=())
+                    send_thread = threading.Thread(target=self.send_messages, args=())
 
-                receive_thread.start()
-                process_thread.start()
-                send_thread.start()
+                    receive_thread.start()
+                    process_thread.start()
+                    send_thread.start()
 
-                if not self.is_bootstrap:
-                    self.connect_to_other_node(self.bootstrap_ip,3000,1)
-                    #self.process_queue.put(("Ola Bootrap",Bootstrap))
-                    time.sleep(10)
-                    for v in self.my_neighbours :
-                        print(f"v - {v}")
-                        thread = threading.Thread(target=self.connect_to_other_node,args=(v,4000,2))
-                        #self.connect_to_other_node(v,4000,2)
-                        #self.process_queue.put(("ola viz",clientSocket))
-                        thread.start()
-                    #for v in self.my_neighbours:
-                        thread.join()
+                    if not self.is_bootstrap:
+                        self.connect_to_other_node(self.bootstrap_ip,3000,1)
 
-                print("Estou em modo full server")
-                #client_socket, client_address = self.server_socket.accept()
-                #self.clients.add(client_socket)
+                        #time.sleep(10)
+                        #for v in self.my_neighbours :
+                        #    print(f"v - {v}")
+                        #    thread = threading.Thread(target=self.connect_to_other_node,args=(v,4000,2))
+                        #    #self.connect_to_other_node(v,4000,2)
+                        #    #self.process_queue.put(("ola viz",clientSocket))
+                        #    thread.start()
+                        ##for v in self.my_neighbours:
+                        #    thread.join()
 
-                receive_thread = threading.Thread(target=self.receive_messages, args=())
-                process_thread = threading.Thread(target=self.process_messages, args=())
-                send_thread = threading.Thread(target=self.send_messages, args=())
+                    
+                    receive_thread.join()
+                    process_thread.join()
+                    send_thread.join()
 
-                receive_thread.start()
-                process_thread.start()
-                send_thread.start()
+                    #print("ola")
 
-                receive_thread.join()
-                process_thread.join()
-                send_thread.join()
+            except Exception as e:
+                print(f"\TCP : An error occurred in start function: {e}")
+            finally:
+                for client_socket in self.clients:
+                    client_socket.close()
 
-        except Exception as e:
-            print(f"\nTCP: An error occurred: {e}")
-        finally:
-            for client_socket in self.clients:
-                client_socket.close()
-
-            if self.server_socket:
-                self.server_socket.close()
+                if self.server_socket:
+                    self.server_socket.close()
