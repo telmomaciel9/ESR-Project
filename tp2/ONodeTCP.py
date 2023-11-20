@@ -29,7 +29,8 @@ class ONodeTCP:
         try:
             while True:
                 data = client_socket.recv(1024)
-                print(data)
+                client_address = client_socket.getpeername()
+                print(f"TCP : Received this message from {client_address}: {data}")
                 if not data:
                     break
                 with self.lock:
@@ -86,11 +87,12 @@ class ONodeTCP:
                 #self.send_queue(("3", len(self.client_sockets)))
             elif purpose == 2:
                 initial_message = "ola vizinh!!"
+                #self.process_queue((initial_message,client_socket))
                 client_socket.send(initial_message.encode())
                 # self.send_queue.put((initial_message, len(self.client_sockets)))
-                data = client_socket.recv(1024)
-                decoded_data = data.decode()
-                print(decoded_data)
+                #data = client_socket.recv(1024)
+                #decoded_data = data.decode()
+                #print(decoded_data)
             self.client_sockets.append(client_socket)
             #break  # Exit the loop if the connection is successful
         #break
@@ -113,21 +115,22 @@ class ONodeTCP:
             self.bind_socket()
             self.server_socket.listen(5)
             
-            if not self.is_bootstrap:
-                self.connect_to_other_node(self.bootstrap_ip,3000,1)
-                #self.process_queue.put(("Ola Bootrap",Bootstrap))
-                time.sleep(10)
-                for v in self.my_neighbours :
-                    print(f"v - {v}")
-                    thread = threading.Thread(target=self.connect_to_other_node,args=(v,4000,2))
-                    #self.connect_to_other_node(v,4000,2)
-                    #self.process_queue.put(("ola viz",clientSocket))
-                    thread.start()
-
-                    thread.join()
-
 
             while not self.wg.is_set():
+
+                if not self.is_bootstrap:
+                    self.connect_to_other_node(self.bootstrap_ip,3000,1)
+                    #self.process_queue.put(("Ola Bootrap",Bootstrap))
+                    time.sleep(10)
+                    for v in self.my_neighbours :
+                        print(f"v - {v}")
+                        thread = threading.Thread(target=self.connect_to_other_node,args=(v,4000,2))
+                        #self.connect_to_other_node(v,4000,2)
+                        #self.process_queue.put(("ola viz",clientSocket))
+                        thread.start()
+                    #for v in self.my_neighbours:
+                        thread.join()
+
                 print("Estou em modo full server")
                 client_socket, client_address = self.server_socket.accept()
                 self.clients.add(client_socket)
