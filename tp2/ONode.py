@@ -1,23 +1,23 @@
 # main_server.py
 import sys
 import threading
-from TCPServer import TCPServer
-from UDPServer import UDPServer
+from ONodeTCP import ONodeTCP
+from ONodeUDP import ONodeUDP
 from bootstrap import Bootstrap
 
 def parserArgs(arg):
     ip, porta = sys.argv[arg].split(":")
     return ip, int(porta)
 
-class MainServer(Server):
+class MainServer():
     def __init__(self,tcp_server_ip, tcp_server_port, udp_server_ip, udp_server_port,bootstrap_ip,bootstrap_port,bootstrap_mode):
         self.wg = threading.Event()
         self.threads = []
         self.mode=bootstrap_mode
         if self.mode:
             self.bootstrap= Bootstrap(bootstrap_ip,bootstrap_port)
-        self.tcp_server = TCPServer(tcp_server_ip, tcp_server_port)
-        self.udp_server = UDPServer(udp_server_ip, udp_server_port)
+        self.tcp_server = ONodeTCP(tcp_server_ip, tcp_server_port)
+        self.udp_server = ONodeUDP(udp_server_ip, udp_server_port)
         
 
     def start(self):

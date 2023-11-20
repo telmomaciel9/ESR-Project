@@ -18,15 +18,18 @@ class ONodeTCP:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_sockets = [] 
 
-
+    #Função para dar bind ao socket do servidor
     def bind_socket(self):
         try:
             self.server_socket.bind(("0.0.0.0",4000))
         except socket.error as e:   
             print(f"TCP: Socket Error on Binding: {e}")
 
-    def receive_messages(self, client_socket):
+    #Função para receber mensagens de um dado socket.
+    #Ao receber, coloca na queue de mensagens recebidas para serem futuramente processadas
+    def receive_messages(self):
         try:
+            client_socket, client_address = self.server_socket.accept()
             while True:
                 data = client_socket.recv(1024)
                 client_address = client_socket.getpeername()
@@ -38,6 +41,9 @@ class ONodeTCP:
         except Exception as e:
             print(f"TCP: An error occurred while receiving messages: {e}")
 
+    #Função para processar as mensagens que estão na queue de mensagens recebidas
+    #Apos o processamento, ela coloca as mensagens já processadas numa queue de mensagens processadas 
+    #para depois poderem ser enviadas 
     def process_messages(self):
         while True:
             with self.lock:
@@ -45,20 +51,32 @@ class ONodeTCP:
                     data, client_socket = self.receive_queue.get()
                     # Simulate processing the message
                     if data == "ola vizinho!!":
-                        print("sakldfsdaklflsdkfasklflskafsklafasklfskladf")
+                        print(f"Recebi esta mensagem ")
                     #processed_message = f"Node {self.node_id}: Processed: {data.decode()}"
                     processed_message = "slakflasflasfkasjfkasljfawklj"
                     self.process_queue.put((processed_message, client_socket))
 
+    #Função para enviar as mensagens que estão na queue de mensagens já processadas
     def send_messages(self):
         while True:
             with self.lock:
                 if not self.process_queue.empty():
                     processed_message, client_socket = self.process_queue.get()
+                    self_ip = client_socket.getsockname()[0]
+                    client_address = client_socket.getpeername()
                     # Simulate sending the message
-                    sent_message = f"Node: Sent: {processed_message}"
-                    client_socket.send(sent_message.encode())
+                    sent_message = f"Node {self_ip}: Sent to {client_address}: {processed_message}"
+                    try:
+                        client_socket.send(sent_message.encode())
+                        print
+                    except Exception as e:
+                        print(f"Error sending message to {client_address} in the send_messages function")
 
+
+
+
+    #Função que basicamente está a atuar como um cliente
+    #De momento tem para caso seja para conectar com o bootstrap ou então os seus vizinhos
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         attempt_count = 0
@@ -118,6 +136,14 @@ class ONodeTCP:
 
             while not self.wg.is_set():
 
+                receive_thread = threading.Thread(target=self.receive_messages, args=())
+                process_thread = threading.Thread(target=self.process_messages, args=())
+                send_thread = threading.Thread(target=self.send_messages, args=())
+
+                receive_thread.start()
+                process_thread.start()
+                send_thread.start()
+
                 if not self.is_bootstrap:
                     self.connect_to_other_node(self.bootstrap_ip,3000,1)
                     #self.process_queue.put(("Ola Bootrap",Bootstrap))
@@ -132,10 +158,10 @@ class ONodeTCP:
                         thread.join()
 
                 print("Estou em modo full server")
-                client_socket, client_address = self.server_socket.accept()
-                self.clients.add(client_socket)
+                #client_socket, client_address = self.server_socket.accept()
+                #self.clients.add(client_socket)
 
-                receive_thread = threading.Thread(target=self.receive_messages, args=(client_socket,))
+                receive_thread = threading.Thread(target=self.receive_messages, args=())
                 process_thread = threading.Thread(target=self.process_messages, args=())
                 send_thread = threading.Thread(target=self.send_messages, args=())
 
