@@ -78,7 +78,7 @@ class Bootstrap:
                             return
 
                         # Handle other cases as needed...
-                        self.process_queue.put((json.dumps(messagem.__dict__), client_socket))
+                        self.process_queue.put((json.dumps(messagem.__dict__), client_socket,False))
 
                     except json.JSONDecodeError as e:
                         print(f"\nBOOTSTRAP : Error decoding JSON data: {e}")
@@ -89,13 +89,19 @@ class Bootstrap:
     def send_messages(self):
         while True:
             with self.lock:
-                if not self.process_queue.empty() :
-                    data, client_socket = self.process_queue.get()
+                if not self.process_queue.empty():
+                    client_socket = None
+                    data, client_socket, Socket_is_Created = self.process_queue.get()
+                    message_data = json.loads(data)
+                    ip_destino = message_data["dest"][0]
+                    port_destino = message_data["dest"][1]
+                    if not Socket_is_Created:
+                        client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                        client_socket.connect((ip_destino,port_destino))
                     try:
-                        message_data = json.loads(data)
-                        destino = message_data["dest"]
+                        
                         client_socket.send(data.encode())
-                        print(f"\nBOOTSTRAP : Send this message: {data} to: {destino}")
+                        print(f"\nTCP : Send this message: {data} to: ({ip_destino},{port_destino})")
                     except json.JSONDecodeError as e:
                         print(f"\nBOOTSTRAP : Error decoding JSON data: {e}")
                     except Exception as e:

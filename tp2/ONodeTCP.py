@@ -19,27 +19,28 @@ class ONodeTCP:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_sockets = [] 
         try:
-            self.server_socket.bind(("0.0.0.0",4000))
+            self.server_socket.bind(("",4000))
         except socket.error as e:   
             print(f"\nTCP : Socket Error on Binding: {e}")
-
+        #self.ip = self.server_socket.getsockname()[0]
+        #print(f"\nTCP : Server IP address: {self.ip}")
+                
+       
 
     def receive_messages(self):
-        while True:
-            try:
-                client_socket, client_address = self.server_socket.accept()
-                print("ola")
-                self.connected_clients.add(client_socket)
-                while True:
-                    data = client_socket.recv(1024)
-                    client_address = client_socket.getpeername()
-                    print(f"\nTCP : Received this message from {client_address}: {data}")
-                    if not data:
-                        break
-                    with self.lock:
-                        self.receive_queue.put((data, client_socket))
-            except Exception as e:
-                print(f"\nTCP : An error occurred while receiving messages: {e}")
+        try:
+            client_socket, client_address = self.server_socket.accept()
+            #self.connected_clients.add(client_socket)
+            while True:
+                data = client_socket.recv(1024)
+                client_address = client_socket.getpeername()
+                print(f"\nTCP : Received this message from {client_address}: {data}")
+                if not data:
+                    break
+                with self.lock:
+                    self.receive_queue.put((data, client_socket))
+        except Exception as e:
+            print(f"\nTCP : An error occurred while receiving messages: {e}")
 
     def process_messages(self):
         while True:
@@ -53,12 +54,12 @@ class ONodeTCP:
                         if message_data["id"] == "2" or message_data["id"] == "3":
                             info = message_data["data"]
                             src = message_data["src"]
-                            print(f"Recebi esta mensagem do {src} : {info}")
+                            print(f"\nRecebi esta mensagem do {src} : {info}")
+                            
+                            mensagem = Message("4", client_socket.getsockname()[0], (client_socket.getpeername()[0],3000),
+                                               "Recebi a tua mensagem, vou terminar a conexao")
 
-                            mensagem = Message("4", client_socket.getsockname()[0], client_socket.getpeername(),
-                                               "Recebi a tua mensagem, vou terminar a conexão")
-
-                            self.process_queue.put((json.dumps(mensagem.__dict__), client_socket))  # Fix the typo here
+                            self.process_queue.put((json.dumps(mensagem.__dict__), client_socket,False))  # Fix the typo here
 
                     except json.JSONDecodeError as e:
                         print(f"\nTCP : Error decoding JSON data: {e}")
@@ -70,19 +71,25 @@ class ONodeTCP:
         while True:
             with self.lock:
                 if not self.process_queue.empty():
-                    data, client_socket = self.process_queue.get()
+                    client_socket = None
+                    data, client_socket, Socket_is_Created = self.process_queue.get()
+                    message_data = json.loads(data)
+                    ip_destino = message_data["dest"][0]
+                    port_destino = message_data["dest"][1]
+                    if not Socket_is_Created:
+                        client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                        client_socket.connect((ip_destino,port_destino))
                     try:
-                        message_data = json.loads(data)
-                        destino = message_data["dest"]
+                        print(client_socket.getpeername())
                         client_socket.send(data.encode())
-                        print(f"\nTCP : Send this message: {data} to: {destino}")
+                        print(f"\nTCP : Sent this message: {data} to: ({ip_destino},{port_destino})")
 
                     except json.JSONDecodeError as e:
                         print(f"\nTCP : Error decoding JSON data: {e}")
                     except Exception as e:
                         print(f"\nTCP : Error sending message in the send_messages function: {e}")
-
-
+                    
+    
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         attempt_count = 0
@@ -92,8 +99,8 @@ class ONodeTCP:
         try:
             client_socket.connect((ip, port))
             if purpose == 1:
-                messagem = Message("1",client_socket.getsockname()[0],client_socket.getpeername(),client_socket.getsockname()[0])
-                self.process_queue.put((json.dumps(messagem.__dict__),client_socket))
+                messagem = Message("1",client_socket.getsockname()[0],(ip,port),client_socket.getsockname()[0])
+                self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
 
             #elif purpose == 2:
             #    initial_message = "ola vizinh!!"
@@ -111,9 +118,7 @@ class ONodeTCP:
             attempt_count += 1
             print(f"\nTCP : Retrying connection to {ip}:{port}... (Attempt {attempt_count})")
             time.sleep(2)  # Adjust the delay between attempts as needed
-        #finally:
-        #    if not client_socket._closed:
-        #        client_socket.close()
+        
         #if attempt_count >= 3:
         #    print(f"\nFailed to establish a connection to {ip}:{port} after multiple attempts.")
 
