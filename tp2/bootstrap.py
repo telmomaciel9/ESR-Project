@@ -32,20 +32,22 @@ class Bootstrap:
     #Função para receber mensagens de um dado socket.
     #Ao receber, coloca na queue de mensagens recebidas para serem futuramente processadas
     def receive_messages(self):
-        while True:
-            try:
+        try:
+            while True:
                 client_socket, client_address = self.bootstrap_socket.accept()
+                print(f"\nBOOTSTRAP : CONNECTED WITH {client_address}")
                 self.connected_clients.add(client_socket)
-                while True:
-                    data = client_socket.recv(1024)
-                    client_address = client_socket.getpeername()
-                    print(f"\nBOOTSTRAP : Received this message from {client_address}: {data}")
-                    if not data:
-                        break
-                    with self.lock:
-                        self.receive_queue.put((data, client_socket))
-            except Exception as e:
-                print(f"\nBOOTSTRAP : An error occurred while receiving messages: {e}")
+                data = client_socket.recv(1024)
+                client_address = client_socket.getpeername()
+                print(f"\nBOOTSTRAP : Received this message from {client_address}: {data}")
+                if not data:
+                    break
+                with self.lock:
+                    self.receive_queue.put((data, client_socket))
+                    print(f"\nBOOTSTRAP : I HAVE {self.receive_queue.qsize()} ELEMENTS IN THE RECEIVE QUEUE")
+                    
+        except Exception as e:
+            print(f"\nBOOTSTRAP : An error occurred while receiving messages: {e}")
 
     #Função para processar as mensagens que estão na queue de mensagens recebidas
     #Apos o processamento, ela coloca as mensagens já processadas numa queue de mensagens processadas 
@@ -53,16 +55,18 @@ class Bootstrap:
     def process_messages(self):
         while True:
             with self.lock:
+                #print(self.receive_queue.qsize())
                 if not self.receive_queue.empty():
+                    print("\nBOOTSTRAP : GOING TO PROCESS A MESSAGE")
                     data, client_socket = self.receive_queue.get()
+                    print(f"\nBOOTSTRAP : I HAVE {self.receive_queue.qsize()} ELEMENTS IN THE RECEIVE QUEUE")
                     try:
                         # Deserialize the JSON data into a Python object
                         message_data = json.loads(data.decode())
 
-
                         if message_data["id"] == "1":
                             isNode = False
-                            print(client_socket.getpeername())
+
                             for key, value in self.dic_with_neighbours.items():
                                 for k in key:
                                     if message_data["data"] == k:
@@ -74,12 +78,13 @@ class Bootstrap:
                         
                         if message_data["id"] == "4":
                             self.connected_clients.remove(client_socket)
-                            client_socket.close()
-                            return
+                            #client_socket.close()
+                            print(f"\nBOOTSTRAP : CLOSED A CONNECTION WITH {client_socket.getsockname()[0]}")
+                            
 
                         # Handle other cases as needed...
                         self.process_queue.put((json.dumps(messagem.__dict__), client_socket,False))
-
+                        print(f"\nBOOTSTRAP : I HAVE {self.process_queue.qsize()} ELEMENTS IN THE PROCESS QUEUE")
                     except json.JSONDecodeError as e:
                         print(f"\nBOOTSTRAP : Error decoding JSON data: {e}")
                     except Exception as e:
@@ -90,8 +95,10 @@ class Bootstrap:
         while True:
             with self.lock:
                 if not self.process_queue.empty():
-                    client_socket = None
+                    print("\nBOOTSTRAP : GOING TO SEND A MESSAGE")
+                    #client_socket = None
                     data, client_socket, Socket_is_Created = self.process_queue.get()
+                    print(f"\nBOOTSTRAP : I HAVE {self.process_queue.qsize()} ELEMENTS IN THE PROCESS QUEUE")
                     message_data = json.loads(data)
                     ip_destino = message_data["dest"][0]
                     port_destino = message_data["dest"][1]
@@ -101,11 +108,16 @@ class Bootstrap:
                     try:
                         
                         client_socket.send(data.encode())
-                        print(f"\nTCP : Send this message: {data} to: ({ip_destino},{port_destino})")
+                        print(f"\nTCP : Sent this message: {data} to: ({ip_destino},{port_destino})")
                     except json.JSONDecodeError as e:
                         print(f"\nBOOTSTRAP : Error decoding JSON data: {e}")
                     except Exception as e:
                         print(f"\nBOOTSTRAP : Error sending message in the send_messages function: {e}")
+                    finally:
+                        if client_socket:
+                            print(f"\nBOOTSTRAP : CLOSED CONNECTOIN WITH {client_socket.getpeername()}")
+                            client_socket.close()
+                            
 
     def start(self):
         try:

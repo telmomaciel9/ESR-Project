@@ -45,6 +45,7 @@ class ONodeTCP:
     def process_messages(self):
         while True:
             with self.lock:
+                #print(f"ELEMENTOS NA RECEIVE QUEUE : {self.receive_queue.qsize()}")
                 if not self.receive_queue.empty():
                     data, client_socket = self.receive_queue.get()
                     try:
@@ -60,7 +61,7 @@ class ONodeTCP:
                                                "Recebi a tua mensagem, vou terminar a conexao")
 
                             self.process_queue.put((json.dumps(mensagem.__dict__), client_socket,False))  # Fix the typo here
-
+                            
                     except json.JSONDecodeError as e:
                         print(f"\nTCP : Error decoding JSON data: {e}")
                     except Exception as e:
@@ -72,6 +73,7 @@ class ONodeTCP:
             with self.lock:
                 if not self.process_queue.empty():
                     client_socket = None
+                    print(f"ELEMENTOS NA PROCESS QUEUE : {self.process_queue.qsize()}")
                     data, client_socket, Socket_is_Created = self.process_queue.get()
                     message_data = json.loads(data)
                     ip_destino = message_data["dest"][0]
@@ -88,7 +90,9 @@ class ONodeTCP:
                         print(f"\nTCP : Error decoding JSON data: {e}")
                     except Exception as e:
                         print(f"\nTCP : Error sending message in the send_messages function: {e}")
-                    
+                    finally:
+                        if client_socket:
+                            client_socket.close()
     
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
