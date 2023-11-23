@@ -21,7 +21,7 @@ class ONodeTCP:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_sockets = [] 
         try:
-            self.server_socket.bind(("",4000))
+            self.server_socket.bind(("0.0.0.0",4000))
         except socket.error as e:   
             print(f"\nTCP : Socket Error on Binding: {e}")
         #self.ip = self.server_socket.getsockname()[0]
@@ -31,15 +31,17 @@ class ONodeTCP:
 
     def receive_messages(self):
         try:
-            client_socket, client_address = self.server_socket.accept()
-            print(f"\nTCP [RECEIVE THREAD] : CONNECTED WITH {client_address}")
-
             while True:
+                print("RECEBIII")
+                client_socket, client_address = self.server_socket.accept()
+                print(f"\nalskdjfsadlkjfsadlkjfsdlkjfsdalkjfs\n{client_socket.getsockname()[0]}")
+                print(f"\nTCP [RECEIVE THREAD] : CONNECTED WITH {client_address}")  
                 data = client_socket.recv(1024)
                 client_address = client_socket.getpeername()
                 print(f"\nTCP [RECEIVE THREAD] : RECEIVE THIS MESSAGE FROM {client_address}: {data}")
                 if not data:
                     break
+
                 with self.lock:
                     self.receive_queue.put((data, client_socket))
                     print(f"\nTCP [RECEIVE THREAD] : I'VE JUST PUT THE MESSAGE IN RECEIVE QUEUE: {data} ")
@@ -143,7 +145,7 @@ class ONodeTCP:
                     finally:
                         if client_socket:
                             client_socket.close()
-    
+                            
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         attempt_count = 0
@@ -161,12 +163,6 @@ class ONodeTCP:
                 self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
 
 
-                #self.process_queue((initial_message,client_socket))
-                #client_socket.send(initial_message.encode())
-                # self.send_queue.put((initial_message, len(self.client_sockets)))
-                #data = client_socket.recv(1024)
-                #decoded_data = data.decode()
-                #print(decoded_data)
             self.client_sockets.append(client_socket)
             #break  # Exit the loop if the connection is successful
         #break

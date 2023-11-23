@@ -44,7 +44,7 @@ if __name__ == "__main__":
     if (len(sys.argv) <3):
         if(sys.argv[1].lower() == "--b"):
             bootstrap_mode = 1
-        elif(sys.argv[1].lower() == "--rp".)    
+        elif(sys.argv[1].lower() == "--rp"):    
             rp_mode = 1
             #abordagem para saber os servidores era passar como um argumento
         else:
