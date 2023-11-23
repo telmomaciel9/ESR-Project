@@ -24,48 +24,34 @@ class ONodeTCP:
             self.server_socket.bind(("0.0.0.0",4000))
         except socket.error as e:   
             print(f"\nTCP : Socket Error on Binding: {e}")
-        #self.ip = self.server_socket.getsockname()[0]
-        #print(f"\nTCP : Server IP address: {self.ip}")
-                
+
        
-    def handle_client(self, client_socket):
-        try:
-            while True:
+    def receive_messages(self):
+        while True:
+            try:
+                client_socket, client_address = self.server_socket.accept()
+                print(f"\nTCP [RECEIVE THREAD] : CONNECTED WITH {client_address}")
                 data = client_socket.recv(1024)
-                client_address = client_socket.getpeername()
-                print(f"\nTCP [RECEIVE THREAD] : RECEIVE THIS MESSAGE FROM {client_address}: {data}")
+                client_address = client_socket.getpeername()[0]
+                host_addr = client_socket.getsockname()[0]
+                print(f"\nTCP [RECEIVE THREAD] : RECEIVED THIS MESSAGE FROM {client_address}: {data}")
                 if not data:
                     break
                 with self.lock:
-                    self.receive_queue.put((data, client_socket))
-                    print(f"\nTCP [RECEIVE THREAD] : I'VE JUST PUT THE MESSAGE IN RECEIVE QUEUE: {data} ")
-                    print(f"\nTCP [RECEIVE THREAD] : I HAVE {self.receive_queue.qsize()} ELEMENTS IN THE RECEIVE QUEUE")
-        except Exception as e:
-            print(f"\nTCP : An error occurred while receiving messages from {client_address}: {e}")
-        finally:
-            with self.lock:
-                self.clients.remove(client_socket)
-                client_socket.close()
+                    self.receive_queue.put((data, host_addr,client_address))
 
-    def receive_messages(self):
-        try:
-            while True:
-                client_socket, client_address = self.server_socket.accept()
-                print(f"\nBOOTSTRAP : CONNECTED WITH {client_address}")
-                self.clients.add(client_socket)
-                client_handler = threading.Thread(target=self.handle_client, args=(client_socket,))
-                client_handler.start()
-        except Exception as e:
-            print(f"\nTCP : An error occurred while accepting connections: {e}")
+            except Exception as e:
+                print(f"\nTCP : An error occurred while receiving messages: {e}")
+
 
     def process_messages(self):
         while True:
             with self.lock:
                 #print(f"ELEMENTOS NA RECEIVE QUEUE : {self.receive_queue.qsize()}")
                 if not self.receive_queue.empty():
-                    data, client_socket = self.receive_queue.get()
+                    data, host_addr,client_address = self.receive_queue.get()
                     print(f"\nTCP [PROCESS THREAD] : GOING TO PROCESS A MESSAGE : {data}")
-                    print(f"\nTCP [PROCESS THREAD] : I HAVE {self.receive_queue.qsize()} ELEMENTS IN THE RECEIVE QUEUE")
+                    
                     try:
                         # Deserialize the JSON data into a Python object
                         message_data = json.loads(data.decode())
@@ -83,28 +69,28 @@ class ONodeTCP:
                             for v in cleaned_values:
                                 self.my_neighbours[v] = False
 
-                            mensagem = Message("4", client_socket.getsockname()[0], (client_socket.getpeername()[0],3000),
+                            mensagem = Message("4", host_addr, (client_address,3000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
 
                         elif message_data["id"] == "3":
                             info = message_data["data"]
                             src = message_data["src"]
  
-                            mensagem = Message("4", client_socket.getsockname()[0], (client_socket.getpeername()[0],3000),
+                            mensagem = Message("4",  host_addr, (client_address,3000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
 
                         elif message_data["id"] == "5":
                             info = message_data["data"]
                             src = message_data["src"]
 
-                            mensagem = Message("6", client_socket.getsockname()[0], (client_socket.getpeername()[0],4000),
+                            mensagem = Message("6", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, tambem consegues receber mensagens minhas?")
                         
                         elif message_data["id"] == "6":
                             info = message_data["data"]
                             src = message_data["src"]
 
-                            mensagem = Message("7", client_socket.getsockname()[0], (client_socket.getpeername()[0],4000),
+                            mensagem = Message("7",  host_addr, (client_address,4000),
                                                "SIM")
 
                         elif message_data["id"] == "7":
@@ -112,15 +98,10 @@ class ONodeTCP:
                             src = message_data["src"]
 
                             self.my_neighbours[src] = True
+                            print(self.my_neighbours)
 
+                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
 
-                        self.process_queue.put((json.dumps(mensagem.__dict__), client_socket,False))  # Fix the typo here
-
-
-
-                        print(f"\nTCP [PROCESS THREAD] : I'VE JUST PUT THE MESSAGE IN PROCESS QUEUE: {data} ")
-                        print(f"\nTCP [PROCESS THREAD] : I HAVE {self.process_queue.qsize()} ELEMENTS IN THE PROCESS QUEUE")
-                            
 
                     except json.JSONDecodeError as e:
                         print(f"\nTCP [PROCESS THREAD]  : Error decoding JSON data: {e}")
@@ -134,25 +115,22 @@ class ONodeTCP:
                 if not self.process_queue.empty():
                     client_socket = None
                     data, client_socket, Socket_is_Created = self.process_queue.get()
-                    print(f"\nTCP [SEND THREAD] : GOING TO SEND THE MESSAGE: {data} ")
-                    print(f"\nTCP [SEND THREAD] : I HAVE {self.process_queue.qsize()} ELEMENTS IN THE PROCESS QUEUE")
                     message_data = json.loads(data)
                     ip_destino = message_data["dest"][0]
                     port_destino = message_data["dest"][1]
+                    
                     if not Socket_is_Created:
                         client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                         client_socket.connect((ip_destino,port_destino))
                     try:
                         client_socket.send(data.encode())
-                        print(f"\nTCP [SEND THREAD] : Sent this message: {data} to: ({ip_destino},{port_destino})")
+                        print(f"\nTCP [SEND THREAD] : SENT THIS MESSAGE TO ({ip_destino},{port_destino}) : {data} ")
 
                     except json.JSONDecodeError as e:
                         print(f"\nTCP [SEND THREAD] : Error decoding JSON data: {e}")
                     except Exception as e:
                         print(f"\nTCP [SEND THREAD] :  Error sending message in the send_messages function: {e}")
-                    finally:
-                        if client_socket:
-                            client_socket.close()
+                    
                             
     def connect_to_other_node(self, ip, port, purpose):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -189,25 +167,27 @@ class ONodeTCP:
             try:
                 self.server_socket.listen(5)
 
-                #while not self.wg.is_set():
+                while not self.wg.is_set():
 
-                receive_thread = threading.Thread(target=self.receive_messages, args=())
-                process_thread = threading.Thread(target=self.process_messages, args=())
-                send_thread = threading.Thread(target=self.send_messages, args=())
-                receive_thread.start()
-                process_thread.start()
-                send_thread.start()
-                if not self.is_bootstrap:
-                    self.connect_to_other_node(self.bootstrap_ip,3000,1)
-                    print(f"\nTCP : ESTES SÃO OS MEUS VIZINHOS: {self.my_neighbours}")
-                    time.sleep(10)
-                    for v in self.my_neighbours.keys() :
-                        self.connect_to_other_node(v,4000,2)
-                
-                receive_thread.join()
-                process_thread.join()
-                send_thread.join()
-                #print("ola")
+                    receive_thread = threading.Thread(target=self.receive_messages, args=())
+                    process_thread = threading.Thread(target=self.process_messages, args=())
+                    send_thread = threading.Thread(target=self.send_messages, args=())
+                    receive_thread.start()
+                    process_thread.start()
+                    send_thread.start()
+
+                    if not self.is_bootstrap:
+                        self.connect_to_other_node(self.bootstrap_ip,3000,1)
+                        #print(f"\nTCP : ESTES SÃO OS MEUS VIZINHOS: {self.my_neighbours}")
+
+                        time.sleep(10)
+                        for v in self.my_neighbours.keys() :
+                            self.connect_to_other_node(v,4000,2)
+
+                    receive_thread.join()
+                    process_thread.join()
+                    send_thread.join()
+                    #print("ola")
 
             except Exception as e:
                 print(f"\TCP : An error occurred in start function: {e}")
