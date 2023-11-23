@@ -71,21 +71,21 @@ class ONodeTCP:
 
                             mensagem = Message("4", host_addr, (client_address,3000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
-
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
                         elif message_data["id"] == "3":
                             info = message_data["data"]
                             src = message_data["src"]
  
                             mensagem = Message("4",  host_addr, (client_address,3000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
-
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
                         elif message_data["id"] == "5":
                             info = message_data["data"]
                             src = message_data["src"]
 
                             mensagem = Message("6", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, tambem consegues receber mensagens minhas?")
-                        
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
                         elif message_data["id"] == "6":
                             info = message_data["data"]
                             src = message_data["src"]
@@ -93,14 +93,14 @@ class ONodeTCP:
                             mensagem = Message("7",  host_addr, (client_address,4000),
                                                "SIM")
 
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
                         elif message_data["id"] == "7":
                             info = message_data["data"]
                             src = message_data["src"]
 
                             self.my_neighbours[src] = True
-                            print(self.my_neighbours)
+                            #print(self.my_neighbours)
 
-                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
 
 
                     except json.JSONDecodeError as e:
@@ -183,7 +183,7 @@ class ONodeTCP:
                         time.sleep(10)
                         for v in self.my_neighbours.keys() :
                             self.connect_to_other_node(v,4000,2)
-
+                        print(f"\nTCP : OS MEUS VIZINHOS: {self.my_neighbours}")
                     receive_thread.join()
                     process_thread.join()
                     send_thread.join()
