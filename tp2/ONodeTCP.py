@@ -28,27 +28,35 @@ class ONodeTCP:
         #print(f"\nTCP : Server IP address: {self.ip}")
                 
        
-
-    def receive_messages(self):
+    def handle_client(self, client_socket):
         try:
             while True:
-                print("RECEBIII")
-                client_socket, client_address = self.server_socket.accept()
-                print(f"\nalskdjfsadlkjfsadlkjfsdlkjfsdalkjfs\n{client_socket.getsockname()[0]}")
-                print(f"\nTCP [RECEIVE THREAD] : CONNECTED WITH {client_address}")  
                 data = client_socket.recv(1024)
                 client_address = client_socket.getpeername()
                 print(f"\nTCP [RECEIVE THREAD] : RECEIVE THIS MESSAGE FROM {client_address}: {data}")
                 if not data:
                     break
-
                 with self.lock:
                     self.receive_queue.put((data, client_socket))
                     print(f"\nTCP [RECEIVE THREAD] : I'VE JUST PUT THE MESSAGE IN RECEIVE QUEUE: {data} ")
                     print(f"\nTCP [RECEIVE THREAD] : I HAVE {self.receive_queue.qsize()} ELEMENTS IN THE RECEIVE QUEUE")
-
         except Exception as e:
-            print(f"\nTCP : An error occurred while receiving messages: {e}")
+            print(f"\nTCP : An error occurred while receiving messages from {client_address}: {e}")
+        finally:
+            with self.lock:
+                self.clients.remove(client_socket)
+                client_socket.close()
+
+    def receive_messages(self):
+        try:
+            while True:
+                client_socket, client_address = self.server_socket.accept()
+                print(f"\nBOOTSTRAP : CONNECTED WITH {client_address}")
+                self.clients.add(client_socket)
+                client_handler = threading.Thread(target=self.handle_client, args=(client_socket,))
+                client_handler.start()
+        except Exception as e:
+            print(f"\nTCP : An error occurred while accepting connections: {e}")
 
     def process_messages(self):
         while True:
