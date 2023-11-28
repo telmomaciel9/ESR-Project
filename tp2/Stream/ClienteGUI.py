@@ -1,5 +1,5 @@
 from tkinter import *
-import tkinter.messagebox
+from tkinter import messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 
@@ -11,7 +11,7 @@ CACHE_FILE_EXT = ".jpg"
 class ClienteGUI:
 	
 	# Initiation..
-	def __init__(self, master, addr, port):
+	def __init__(self, master, addr, port, server_ip, port_tcp):
 		self.master = master
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
@@ -24,6 +24,9 @@ class ClienteGUI:
 		self.openRtpPort()
 		self.playMovie()
 		self.frameNbr = 0
+		self.server_ip = server_ip
+		self.tcp_port = port_tcp
+		self.tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		
 	def createWidgets(self):
 		"""Build GUI."""
@@ -57,16 +60,22 @@ class ClienteGUI:
 	
 	def setupMovie(self):
 		"""Setup button handler."""
-		print("Not implemented...")
+		self.tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.tcpSocket.connect((self.server_ip, self.tcp_port))	
+		print("Sending")
+		self.tcpSocket.sendall(b"Stream")
 	
 	def exitClient(self):
 		"""Teardown button handler."""
+		self.tcpSocket.sendall(b"Stop")
+		self.tcpSocket.close()
 		self.master.destroy() # Close the gui window
-		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		os.remove(os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
 
 	def pauseMovie(self):
 		"""Pause button handler."""
-		print("Not implemented...")
+		self.playEvent.set() # Set the event to pause
+		os.remove(os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
 	
 	def playMovie(self):
 		"""Play button handler."""
@@ -90,6 +99,7 @@ class ClienteGUI:
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
+
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
 				if self.playEvent.isSet(): 
@@ -102,7 +112,7 @@ class ClienteGUI:
 	
 	def writeFrame(self, data):
 		"""Write the received frame to a temp image file. Return the image file."""
-		cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
+		cachename = os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
 		file = open(cachename, "wb")
 		file.write(data)
 		file.close()
@@ -129,12 +139,12 @@ class ClienteGUI:
 			self.rtpSocket.bind((self.addr, self.port))
 			print('\nBind \n')
 		except:
-			tkMessageBox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
+			messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
 
 	def handler(self):
 		"""Handler on explicitly closing the GUI window."""
 		self.pauseMovie()
-		if tkMessageBox.askokcancel("Quit?", "Are you sure you want to quit?"):
+		if messagebox.askokcancel("Quit?", "Are you sure you want to quit?"):
 			self.exitClient()
 		else: # When the user presses cancel, resume playing.
 			self.playMovie()
