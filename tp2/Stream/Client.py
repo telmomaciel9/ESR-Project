@@ -154,7 +154,11 @@ class Client:
 			self.rtspSeq += 1
 			
 			# Write the RTSP request to be sent.
-			request = f"SETUP {self.fileName} RTSP/1.0\r\nCSeq: {self.rtspSeq}\r\n\r\n"
+			request = (
+                f"SETUP {self.fileName} RTSP/1.0\r\n"
+                f"CSeq: {self.rtspSeq}\r\n"
+                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
+            )
 			
 			# Keep track of the sent request.
 			self.requestSent = request
@@ -265,7 +269,7 @@ class Client:
 		
 		try:
 			# Bind the socket to the address using the RTP port
-			self.rtpSocket.bind((self.addr, self.port))
+			self.rtpSocket.bind(('', self.rtpPort))
 			print('\nBind \n')
 		except:
 			messagebox.showwarning('Unable to Bind', 'Unable to bind PORT=%d' %self.rtpPort)
