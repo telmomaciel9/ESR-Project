@@ -171,8 +171,11 @@ class Client:
 			print('\nPLAY event\n')
     
 			# Write the RTSP request to be sent.
-			request = f"PLAY {self.fileName} RTSP/1.0\r\nCSeq: {self.rtspSeq}\r\n\r\n"
-			
+			request = (
+                f"SETUP {self.fileName} RTSP/1.0\r\n"
+                f"CSeq: {self.rtspSeq}\r\n"
+                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
+            )
 			# Keep track of the sent request.
 			self.requestSent = request
 		
@@ -183,8 +186,11 @@ class Client:
 			print('\PAUSE event\n')
 			
 			# Write the RTSP request to be sent.
-			request = f"PLAY {self.fileName} RTSP/1.0\r\nCSeq: {self.rtspSeq}\r\n\r\n"
-			
+			request = (
+                f"SETUP {self.fileName} RTSP/1.0\r\n"
+                f"CSeq: {self.rtspSeq}\r\n"
+                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
+            )
 			# Keep track of the sent request.
 			self.requestSent = request
 			
@@ -195,8 +201,11 @@ class Client:
 			print('\nTEARDOWN event\n')
 			
 			# Write the RTSP request to be sent.
-			request = f"PLAY {self.fileName} RTSP/1.0\r\nCSeq: {self.rtspSeq}\r\n\r\n"
-			
+			request = (
+                f"SETUP {self.fileName} RTSP/1.0\r\n"
+                f"CSeq: {self.rtspSeq}\r\n"
+                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
+            )
 			# Keep track of the sent request.
 			self.requestSent = request
 		else:
