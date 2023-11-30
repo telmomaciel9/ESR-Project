@@ -154,14 +154,11 @@ class Client:
 			self.rtspSeq += 1
 			
 			# Write the RTSP request to be sent.
-			request = (
-                f"SETUP {self.fileName} RTSP/1.0\r\n"
-                f"CSeq: {self.rtspSeq}\r\n"
-                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
-            )
+			request = f"SETUP {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}\nTransport: RTP/UDP; client_port= {self.rtpPort}"
+			#request = f"SETUP {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
 			
 			# Keep track of the sent request.
-			self.requestSent = request
+			self.requestSent = self.SETUP
 			
 		
 		# Play request
@@ -171,13 +168,10 @@ class Client:
 			print('\nPLAY event\n')
     
 			# Write the RTSP request to be sent.
-			request = (
-                f"SETUP {self.fileName} RTSP/1.0\r\n"
-                f"CSeq: {self.rtspSeq}\r\n"
-                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
-            )
+			#request = f"PLAY {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
+			request = f"PLAY {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}\nTransport: RTP/UDP; client_port= {self.rtpPort}"
 			# Keep track of the sent request.
-			self.requestSent = request
+			self.requestSent = self.PLAY
 		
 		# Pause request
 		elif requestCode == self.PAUSE and self.state == self.PLAYING:
@@ -186,13 +180,10 @@ class Client:
 			print('\PAUSE event\n')
 			
 			# Write the RTSP request to be sent.
-			request = (
-                f"SETUP {self.fileName} RTSP/1.0\r\n"
-                f"CSeq: {self.rtspSeq}\r\n"
-                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
-            )
+			request = f"PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}\nTransport: RTP/UDP; client_port= {self.rtpPort}"
+			#request = f"PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
 			# Keep track of the sent request.
-			self.requestSent = request
+			self.requestSent = self.PAUSE
 			
 		# Teardown request
 		elif requestCode == self.TEARDOWN and not self.state == self.INIT:
@@ -201,13 +192,10 @@ class Client:
 			print('\nTEARDOWN event\n')
 			
 			# Write the RTSP request to be sent.
-			request = (
-                f"SETUP {self.fileName} RTSP/1.0\r\n"
-                f"CSeq: {self.rtspSeq}\r\n"
-                f"Transport: RTP/UDP; client_port={self.rtpPort}\r\n\r\n"
-            )
+			#request = f"TEARDOWN {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
+			request = f"PAUSE {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}\nTransport: RTP/UDP; client_port= {self.rtpPort}"
 			# Keep track of the sent request.
-			self.requestSent = request
+			self.requestSent = self.TEARDOWN
 		else:
 			return
 		
