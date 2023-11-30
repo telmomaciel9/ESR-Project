@@ -11,7 +11,9 @@ CACHE_FILE_EXT = ".jpg"
 class ClienteGUI:
 	
 	# Initiation..
-	def __init__(self, master, addr, port, server_ip, port_tcp):
+	# client addr:port 127.0.0.1:5001
+	# server server_ip:port_tcp input:9999
+	def __init__(self, master, addr, port, server_ip, server_port):
 		self.master = master
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
@@ -25,7 +27,7 @@ class ClienteGUI:
 		self.playMovie()
 		self.frameNbr = 0
 		self.server_ip = server_ip
-		self.tcp_port = port_tcp
+		self.server_port = server_port
 		self.tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		
 	def createWidgets(self):
@@ -61,7 +63,7 @@ class ClienteGUI:
 	def setupMovie(self):
 		"""Setup button handler."""
 		self.tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.tcpSocket.connect((self.server_ip, self.tcp_port))	
+		self.tcpSocket.connect((self.server_ip, self.server_port))	
 		print("Sending")
 		self.tcpSocket.sendall(b"Stream")
 	
@@ -70,12 +72,12 @@ class ClienteGUI:
 		self.tcpSocket.sendall(b"Stop")
 		self.tcpSocket.close()
 		self.master.destroy() # Close the gui window
-		os.remove(os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
 
 	def pauseMovie(self):
 		"""Pause button handler."""
 		self.playEvent.set() # Set the event to pause
-		os.remove(os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
 	
 	def playMovie(self):
 		"""Play button handler."""
@@ -112,7 +114,7 @@ class ClienteGUI:
 	
 	def writeFrame(self, data):
 		"""Write the received frame to a temp image file. Return the image file."""
-		cachename = os.path.expanduser('~') + "/" + CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
+		cachename = CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT
 		file = open(cachename, "wb")
 		file.write(data)
 		file.close()
