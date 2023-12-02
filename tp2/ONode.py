@@ -22,15 +22,15 @@ class ONode():
     
         self.ONode_udp = ONodeUDP()
         if not self.rp_mode and not self.bootstrap_mode:
-            self.ONode_tcp = ONodeTCP(bootstrap_ip,self.bootstrap_mode,self.rp_mode)
+            self.ONode_tcp = ONodeTCP(bootstrap_ip)
 
         
 
     def start(self):
         
+        self.threads.append(threading.Thread(target=self.ONode_udp.start))
         if not self.rp_mode and not self.bootstrap_mode:
             self.threads.append(threading.Thread(target=self.ONode_tcp.start))
-        self.threads.append(threading.Thread(target=self.ONode_udp.start))
         if self.bootstrap_mode:
             self.threads.append(threading.Thread(target=self.bootstrap.start))
         if self.rp_mode:
@@ -52,12 +52,9 @@ if __name__ == "__main__":
     rp_mode = 0
     bootstrap_ip = "" # Initialize to None
 
-    
-        
     if(len(sys.argv) > 3 and ((sys.argv[1].lower() == "--rp" and sys.argv[2].lower() == "--b") or (sys.argv[2].lower() == "--rp" and sys.argv[1].lower() == "--b"))):
         bootstrap_mode = 1
         rp_mode = 1
-    
     elif(sys.argv[1].lower() == "--b"):
         bootstrap_mode = 1
     elif(sys.argv[1].lower() == "--rp"):    

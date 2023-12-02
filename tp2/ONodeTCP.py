@@ -8,10 +8,8 @@ import bisect
 
 
 class ONodeTCP:
-    def __init__(self, bootstrap_ip, is_bootstrap,is_rp):
+    def __init__(self, bootstrap_ip):
         self.bootstrap_ip = bootstrap_ip
-        self.is_bootstrap = is_bootstrap
-        self.is_rp = is_rp
         self.wg = threading.Event()
         self.clients_sockets = []
         self.my_neighbours= dict()
@@ -19,8 +17,8 @@ class ONodeTCP:
         self.receive_queue = queue.Queue()
         self.process_queue = queue.Queue()
         self.have_stream = False
-        self.num_respostas_flood = 0
-        self.lista_tempo_envio = set()
+        self.avo = {}
+        self.netos = {} 
 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -67,59 +65,115 @@ class ONodeTCP:
 
                         if message_data["id"] == "2":
                             info = message_data["data"]
-                            # Remove brackets and split the string into a list
-                            values = info[1:-1].split(', ')
+                            result_string = json.loads(info)
 
-                            # Remove double quotes from each element
-                            cleaned_values = [value.strip('"') for value in values]
-                        
-                            for v in cleaned_values:
-                                self.my_neighbours[v] = [False,False]
-
+                            #    self.my_neighbours[v] = {"Vivo":False, "Ativo":False}
+                            for v in result_string:
+                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False}
+                            print(f"\n\n{self.my_neighbours}")
                             mensagem = Message("4", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+
                         elif message_data["id"] == "3":
                             mensagem = Message("4",  host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+                        
                         elif message_data["id"] == "5":
-
                             mensagem = Message("6", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, tambem consegues receber mensagens minhas?")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+                        
                         elif message_data["id"] == "6":
                             mensagem = Message("7",  host_addr, (client_address,4000),
                                                "SIM")
-
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
+                        
                         elif message_data["id"] == "7":
                             src = message_data["src"]
+                            
+                            for k,v in self.my_neighbours.items():
+                                if src in k:
+                                    v["Vivo"] = True
+                                    break
 
-                            self.my_neighbours[src][0] = True
                             print(f"\n OS MEUS VIZINHOS!!!! {self.my_neighbours}")
 
-                        elif message_data["id"] == "8" and not self.is_rp:
-                            #timestamp que o vizinho fez o pedido
+                        elif message_data["id"] == "8":#quando é um cliente a enviar
+                            #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
+                            StreamId, time_sent_message, soma_acumulada_recebida = message_data["data"]
+                            src = message_data["src"]
+                            dest = message_data["dest"]
+
                             time_now = int(time.time()*1000)
-                            temp_ini = message_data["data"][0]
-                            tempo_diff = time_now-temp_ini
-                            soma_acumulada = tempo_diff+message_data["data"][1]
-                            #src = message_data["src"]
-                            #timestamp atual
-                            #util para depois fazer as somas acumuladas e para fazer o peso de uma aresta do viz quando recebe
+                            tempo_diff = time_now-time_sent_message
+                            soma_acumulada = tempo_diff+soma_acumulada_recebida
+                            
+                            if src not in self.my_neighbours.keys():
+                                self.my_neighbours.setdefault(src, {})
+                            self.my_neighbours[src]["Vivo"] = 1
+                            self.my_neighbours[src]["Ativo"] = 1
+                            self.my_neighbours[src]["Peso_Aresta"] = tempo_diff
+                            self.my_neighbours[src]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
+
+                            print("\n\nvivivivivivi\n")
+                            print(self.my_neighbours)
+                            print("\n\n\n")
+
+                            if not self.have_stream:
+                                print("ola")
+                                for key,value in self.my_neighbours.items():
+                                    if value["Vivo"] == 1 and client_address not in key:
+                                        lista = [StreamId, src, time_now, soma_acumulada]
+
+                                        mensagem = Message("9",host_addr,(key[0],4000),lista)
+                                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
+                                    
+                        elif message_data["id"] == "9": #entre nodos
+                            #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
+                            StreamId,neto,time_sent_message,soma_acumulada_recebida = message_data["data"]
+                            src = message_data["src"]
+
+                            time_now = int(time.time()*1000)
+                            tempo_diff = time_now-time_sent_message
+                            soma_acumulada = tempo_diff+soma_acumulada_recebida
+
+                            for k,v in self.my_neighbours.items():
+                                if src in k:
+                                    self.my_neighbours[k]["Peso_Aresta"] = tempo_diff
+                                    self.my_neighbours[k]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
+                                    if "Neto" not in self.my_neighbours[k]:
+                                        self.my_neighbours[k]["Neto"] = []
+                                    if neto not in self.my_neighbours[k]["Neto"]:    
+                                        self.my_neighbours[k]["Neto"].append(neto)
+                                    break
+                            print("\n\n\nasdfkljsad")
+                            print(self.my_neighbours)
+
                             if not self.have_stream:
                                 for key,value in self.my_neighbours.items():
-                                    if value[0] == 1 and key != client_address:
-                                        #timestamp_millisecs = int(time.time()*1000)
-                                        #no campo data, envia o timestamp em que esta a enviar e o valor do caminho ate agora
-                                        mensagem = Message("8",host_addr,(key,4000),(time_now,soma_acumulada))
-                                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
-                                    print("\nJA mandei")
-                        elif message_data["id"] == "9":
-                            self.have_stream = True
-                            print("tenho a stream")
+                                    if value["Vivo"] == 1 and key != client_address:
+                                        lista = [StreamId, src, time_now, soma_acumulada]
 
+                                        mensagem = Message("9",host_addr,(key[0],4000),lista)
+                                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
+                        
+                        elif message_data["id"] == "10":
+                            StreamId,avo,time_I_sent_message,soma_acumulada_enviada = message_data["data"]
+
+                            self.my_neighbours[src]
+
+
+                            self.pai = message_data["data"][0]
+                            timeStamp_mensagem_enviada = message_data["data"][1]
+                            soma_acumulada_mensagem_enviada = message_data["data"][2]
+
+                            #for k,v in self.my_neighbours.items():
+                            #    if v[""]
+
+
+                            
 
                     except json.JSONDecodeError as e:
                         print(f"\nTCP [PROCESS THREAD]  : Error decoding JSON data: {e}")
@@ -194,16 +248,14 @@ class ONodeTCP:
                     receive_thread.start()
                     process_thread.start()
                     send_thread.start()
+                
+                    self.connect_to_other_node(self.bootstrap_ip,4000,1)
 
-                    if not self.is_bootstrap:
-                        self.connect_to_other_node(self.bootstrap_ip,4000,1)
-                        #print(f"\nTCP : ESTES SÃO OS MEUS VIZINHOS: {self.my_neighbours}")
-
-                        time.sleep(10)
-                        for v in self.my_neighbours.keys() :
-                            self.connect_to_other_node(v,4000,2)
-                        
-                        print(f"\nTCP : OS MEUS VIZINHOS: {self.my_neighbours}")
+                    time.sleep(10)
+                    for v in self.my_neighbours.keys() :
+                        self.connect_to_other_node(v[0],4000,2)
+                    
+                    print(f"\nTCP : OS MEUS VIZINHOS: {self.my_neighbours}")
                     receive_thread.join()
                     process_thread.join()
                     send_thread.join()
