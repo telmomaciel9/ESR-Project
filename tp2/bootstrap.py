@@ -37,7 +37,18 @@ class Bootstrap():
 
                 self.dic_with_neighbours[tuple(ips)] = neighbor_ips
 
-
+    def pprint_viz(self):
+        print("\n")
+        print("---------------- Meus Vizinhos ---------------")
+        for k,v in self.my_neighbours.items():
+            print(f"Nodo com Ips: {k}")
+            print(f"  Vivo : {v['Vivo']}")
+            print(f"  Ativo : {v['Ativo']}")
+            print(f"  Peso Aresta : {v['Peso_Aresta']}")
+            print(f"  Streams : {v['Streams']}")
+            print(f"  Netos : {v['Netos']}")
+            print(f"  Visited : {v['Visited']}")
+            print("------------------------------")
 
     def receive_messages(self):
         while True:
@@ -71,7 +82,7 @@ class Bootstrap():
                                 for key, value in self.dic_with_neighbours.items():
                                     if host_addr in key:
                                         for v in value:
-                                            self.my_neighbours[tuple(v)] = {"Vivo":False, "Ativo":False}                                              
+                                            self.my_neighbours[tuple(v)] = {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Netos":[],"Visited" : False}                                              
 
                             for key, value in self.dic_with_neighbours.items():
                                 for k in key:
@@ -110,33 +121,36 @@ class Bootstrap():
                                 if src in k:
                                     v["Vivo"] = True
                                     break
-                            print(f"\n OS MEUS VIZINHOS!!!! {self.my_neighbours}")
+                            
+                            self.pprint_viz()
 
                         elif message_data["id"] == "8":#quando é um cliente a enviar
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
                             StreamId, time_sent_message, soma_acumulada_recebida = message_data["data"]
                             src = message_data["src"]
                             dest = message_data["dest"]
+
                             time_now = int(time.time()*1000)
                             tempo_diff = time_now-time_sent_message
                             soma_acumulada = tempo_diff+soma_acumulada_recebida
+                            
                             if src not in self.my_neighbours.keys():
                                 self.my_neighbours.setdefault(src, {})
                             self.my_neighbours[src]["Vivo"] = 1
                             self.my_neighbours[src]["Ativo"] = 1
                             self.my_neighbours[src]["Peso_Aresta"] = tempo_diff
                             self.my_neighbours[src]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
+                            self.my_neighbours[src]["Visited"] = True
+                            if "Netos" not in self.my_neighbours[k]:
+                                self.my_neighbours[k]["Neto"] = []
 
-                            print("\n\nvivivivivivi\n")
-                            print(self.my_neighbours)
-                            print("\n\n\n")
+                            self.pprint_viz()
 
                             if not self.have_stream:
-                                print("ola")
                                 for key,value in self.my_neighbours.items():
                                     if value["Vivo"] == 1 and client_address not in key:
                                         lista = [StreamId, src, time_now, soma_acumulada]
-
+                                        
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
                                     
@@ -153,16 +167,17 @@ class Bootstrap():
                                 if src in k:
                                     self.my_neighbours[k]["Peso_Aresta"] = tempo_diff
                                     self.my_neighbours[k]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
-                                    if "Neto" not in self.my_neighbours[k]:
-                                        self.my_neighbours[k]["Neto"] = []
-                                    self.my_neighbours[k]["Neto"].append(neto)
+                                    self.my_neighbours[k]["Visited"] = True
+                                    if "Netos" not in self.my_neighbours[k]:
+                                        self.my_neighbours[k]["Netos"] = []
+                                    if neto not in self.my_neighbours[k]["Netos"]:    
+                                        self.my_neighbours[k]["Netos"].append(neto)
                                     break
-                            print("\n\n\nasdfkljsad")
-                            print(self.my_neighbours)
-
+                            
+                            self.pprint_viz()
                             if not self.have_stream:
                                 for key,value in self.my_neighbours.items():
-                                    if value["Vivo"] == 1 and key != client_address:
+                                    if value["Vivo"] == 1 and client_address not in key and value["Visited"] == False:
                                         lista = [StreamId, src, time_now, soma_acumulada]
 
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
@@ -194,8 +209,7 @@ class Bootstrap():
                 if not self.process_queue.empty():
                     client_socket = None
                     data, client_socket, Socket_is_Created = self.process_queue.get()
-                    #print(f"\nBOOTSTRAP [SEND THREAD] : GOING TO SEND A MESSAGE {data}")
-                    #print(f"\nBOOTSTRAP [SEND THREAD] : I HAVE {self.process_queue.qsize()} ELEMENTS IN THE PROCESS QUEUE")
+
                     message_data = json.loads(data)
                     ip_destino = message_data["dest"][0]
                     port_destino = message_data["dest"][1]
@@ -217,8 +231,6 @@ class Bootstrap():
         try:
             self.read_neighbours_file("bootstraptestea.json")
 
-            print(f"\n\ndic com os viz todos : {self.dic_with_neighbours}")
-            #self.read_neighbours_file("teste3.json")
             self.bootstrap_socket.listen(5)
 
             while not self.wg.is_set():

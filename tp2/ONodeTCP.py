@@ -27,6 +27,19 @@ class ONodeTCP:
             print(f"\nTCP : Socket Error on Binding: {e}")
 
        
+    def pprint_viz(self):
+        print("\n")
+        print("---------------- Meus Vizinhos ---------------")
+        for k,v in self.my_neighbours.items():
+            print(f"Nodo com Ips: {k}")
+            print(f"  Vivo : {v['Vivo']}")
+            print(f"  Ativo : {v['Ativo']}")
+            print(f"  Peso Aresta : {v['Peso_Aresta']}")
+            print(f"  Streams : {v['Streams']}")
+            print(f"  Netos : {v['Netos']}")
+            print(f"  Visited : {v['Visited']}")
+            print("------------------------------")
+   
     def receive_messages(self):
         while True:
             try:
@@ -43,12 +56,6 @@ class ONodeTCP:
 
             except Exception as e:
                 print(f"\nTCP : An error occurred while receiving messages: {e}")
-
-    def check_is_in_list(self,element, listoftuples):
-        for tup in listoftuples:
-            if element == tup[0]:
-                return True
-        return False
 
 
     def process_messages(self):
@@ -69,8 +76,8 @@ class ONodeTCP:
 
                             #    self.my_neighbours[v] = {"Vivo":False, "Ativo":False}
                             for v in result_string:
-                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False}
-                            print(f"\n\n{self.my_neighbours}")
+                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Netos":[],"Visited" : False}
+                            self.pprint_viz()
                             mensagem = Message("4", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
@@ -98,7 +105,7 @@ class ONodeTCP:
                                     v["Vivo"] = True
                                     break
 
-                            print(f"\n OS MEUS VIZINHOS!!!! {self.my_neighbours}")
+                            self.pprint_viz()
 
                         elif message_data["id"] == "8":#quando é um cliente a enviar
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
@@ -116,17 +123,17 @@ class ONodeTCP:
                             self.my_neighbours[src]["Ativo"] = 1
                             self.my_neighbours[src]["Peso_Aresta"] = tempo_diff
                             self.my_neighbours[src]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
+                            self.my_neighbours[src]["Visited"] = True
+                            if "Netos" not in self.my_neighbours[src]:
+                                self.my_neighbours[src]["Netos"] = []
 
-                            print("\n\nvivivivivivi\n")
-                            print(self.my_neighbours)
-                            print("\n\n\n")
+                            self.pprint_viz()
 
                             if not self.have_stream:
-                                print("ola")
                                 for key,value in self.my_neighbours.items():
                                     if value["Vivo"] == 1 and client_address not in key:
                                         lista = [StreamId, src, time_now, soma_acumulada]
-
+                                        
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
                                     
@@ -143,17 +150,16 @@ class ONodeTCP:
                                 if src in k:
                                     self.my_neighbours[k]["Peso_Aresta"] = tempo_diff
                                     self.my_neighbours[k]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
-                                    if "Neto" not in self.my_neighbours[k]:
-                                        self.my_neighbours[k]["Neto"] = []
-                                    if neto not in self.my_neighbours[k]["Neto"]:    
-                                        self.my_neighbours[k]["Neto"].append(neto)
+                                    self.my_neighbours[k]["Visited"] = True
+                                    if "Netos" not in self.my_neighbours[k]:
+                                        self.my_neighbours[k]["Netos"] = []
+                                    if neto not in self.my_neighbours[k]["Netos"]:    
+                                        self.my_neighbours[k]["Netos"].append(neto)
                                     break
-                            print("\n\n\nasdfkljsad")
-                            print(self.my_neighbours)
-
+                            self.pprint_viz()
                             if not self.have_stream:
                                 for key,value in self.my_neighbours.items():
-                                    if value["Vivo"] == 1 and key != client_address:
+                                    if value["Vivo"] == 1 and client_address not in key and value["Visited"] == False:
                                         lista = [StreamId, src, time_now, soma_acumulada]
 
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
@@ -189,8 +195,9 @@ class ONodeTCP:
                     data, client_socket, Socket_is_Created = self.process_queue.get()
                     message_data = json.loads(data)
                     ip_destino = message_data["dest"][0]
+
                     port_destino = message_data["dest"][1]
-                    
+
                     if not Socket_is_Created:
                         client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                         client_socket.connect((ip_destino,port_destino))

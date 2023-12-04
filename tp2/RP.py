@@ -25,6 +25,19 @@ class RP():
         except socket.error as e:
             print(f"\nRP : Socket Error: {e}")
 
+    def pprint_viz(self):
+        print("\n")
+        print("---------------- Meus Vizinhos ---------------")
+        for k,v in self.my_neighbours.items():
+            print(f"Nodo com Ips: {k}")
+            print(f"  Vivo : {v['Vivo']}")
+            print(f"  Ativo : {v['Ativo']}")
+            print(f"  Peso Aresta : {v['Peso_Aresta']}")
+            print(f"  Streams : {v['Streams']}")
+            print(f"  Netos : {v['Netos']}")
+            print(f"  Visited : {v['Visited']}")
+            print("------------------------------")
+
 
     def receive_messages(self):
         while True:
@@ -34,21 +47,32 @@ class RP():
                 data = client_socket.recv(1024)
                 client_address = client_socket.getpeername()[0]
                 host_addr = client_socket.getsockname()[0]
-                print(f"\RP [RECEIVE THREAD] : RECEIVED THIS MESSAGE FROM {client_address}: {data}")
+                print(f"\nRP [RECEIVE THREAD] : RECEIVED THIS MESSAGE FROM {client_address}: {data}")
+
                 if not data:
                     break
                 with self.lock:
-                    self.receive_queue.put((data, host_addr,client_address))
+                    self.receive_queue.put([data, host_addr, client_address])
 
             except Exception as e:
                     print(f"\nRP : An error occurred while receiving messages: {e}")
-   
+    
+    def escolher_melhor_nodo(self,StreamId):
+        nodos_ativos = [nodo for nodo, info in self.my_neighbours.items() if info["Ativo"]]
+    
+        if not nodos_ativos:
+            return None  # Nenhum caminho ativo no momento
+
+        melhor_nodo = min(nodos_ativos, key=lambda nodo: self.my_neighbours[nodo]["Streams"][StreamId]["Soma_Acumulada"])
+    
+        return melhor_nodo
+
 
     def process_messages(self):
         while True:
             with self.lock:
                 if not self.receive_queue.empty():
-                    data, host_addr,client_address = self.receive_queue.get()
+                    data,host_addr,client_address = self.receive_queue.get()
                     print(f"\nRP [PROCESS TREAD] : GOING TO PROCESS A MESSAGE {data}")
                     try:
                         # Deserialize the JSON data into a Python object
@@ -58,10 +82,11 @@ class RP():
                             info = message_data["data"]
                             result_string = json.loads(info)
 
-                            #    self.my_neighbours[v] = {"Vivo":False, "Ativo":False}
                             for v in result_string:
-                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False}
-                            print(f"\n\n{self.my_neighbours}")
+                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Netos":[],"Visited" : False}
+
+                            self.pprint_viz()
+
                             mensagem = Message("4", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, vou terminar a conexao")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
@@ -89,46 +114,52 @@ class RP():
                                     v["Vivo"] = True
                                     break
 
-                            print(f"\n OS MEUS VIZINHOS!!!! {self.my_neighbours}")
+                            self.pprint_viz()
 
                         elif message_data["id"] == "9":
-                            
-                            StreamId, neto, timeStart, soma_acumulada_recebida  = message_data["data"]
+                            StreamId, neto, time_sent_message, soma_acumulada_recebida = message_data["data"]
                             src = message_data["src"]
-                            
+
                             time_now = int(time.time() * 1000)
-                            tempo_diff = time_now - timeStart
-                            soma_acumulada = tempo_diff+soma_acumulada_recebida
+                            tempo_diff = time_now - time_sent_message
+                            soma_acumulada = tempo_diff + soma_acumulada_recebida
 
-                            self.my_neighbours[src]["Peso_Aresta"] = tempo_diff
-                            self.my_neighbours[src]["Strams"] = {StreamId:{"Time_Sent_flood":timeStart,"Soma_Acumulada":soma_acumulada}}
-                            self.my_neighbours[src]["Neto"].append(neto)
+                            chave = tuple()
+                            for k in self.my_neighbours.keys():
+                                if src in k:
+                                    chave = k
+                                    break
 
-                            print("\n")
-                            print(self.my_neighbours)
+                            # Operações críticas começam aqui
+                            
+                            self.my_neighbours[chave]["Peso_Aresta"] = tempo_diff
+                            self.my_neighbours[chave]["Streams"] = {StreamId: {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada}}
+                            self.my_neighbours[chave]["Visited"] = True
+                            if "Neto" not in self.my_neighbours[chave]:
+                                self.my_neighbours[chave]["Neto"] = []
+                            if neto not in self.my_neighbours[chave]["Neto"]:
+                                self.my_neighbours[chave]["Neto"].append(neto)
 
-                            ativos = {chave:valor for chave,valor in my_neighbours.items() if valor["Ativo"]==1} 
-                            if len(ativos) == 0 :
-                                lista = [StreamId,host_addr,timeStart,soma_acumulada_recebida]
-                                messagem = Message("10",host_addr,src, lista)
-                                self.process_queue.put((json.dumps(messagem.__dict__),None,False))
-                                self.my_neighbours[src]["Ativo"] = 1
-                            elif len(ativos) != 0:
-                                for k,v in ativos:
-                                    if v["Ativo"] and v["Soma_Acumulada"]>soma_acumulada:
-                                        self.my_neighbours[src]["Ativo"] = True
-                                        self.my_neighbours[k]["Ativo"] = False
-                                        #Mensagem para destivar
-                                        messagem = Message("11",host_addr,k,"Desativa o teu caminho, encontrei um melhor")
-                                        self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
-                                        #dizer para o novo caminho ativar
-                                        lista = [host_addr,pesoTotal]
-                                        messagem = Message("10",host_addr,src, lista)
-                                        self.process_queue.put((json.dumps(messagem.__dict__),None,False))
+                            self.pprint_viz()
+                            
+                            melhor_nodo = self.escolher_melhor_nodo(StreamId)
+                            print(melhor_nodo)
+                            if melhor_nodo:
+                                print(f"\nMelhor nodo escolhido: {melhor_nodo}")
+                                # Envie a mensagem para o melhor caminho
+                                lista = [StreamId, host_addr, time_sent_message, soma_acumulada_recebida]
+                                mensagem = Message("10", host_addr, (melhor_nodo[0], 4000), lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
                             else:
-                                print("\nvou passar à frente porque ainda nao tenho todos os caminhos possiveis")
-                                
+                                self.my_neighbours[chave]["Ativo"] = True
+                                lista = [StreamId, host_addr, time_sent_message, soma_acumulada_recebida]
+                                mensagem = Message("10", host_addr, (src, 4000), lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
+                                print("\nAtivando novo caminho")
 
+                            
+                        
+                        
 
                     except json.JSONDecodeError as e:
                         print(f"\nRP [PROCESS TREAD] : Error decoding JSON data: {e}")
@@ -209,7 +240,6 @@ class RP():
                     receive_thread.join()
                     process_thread.join()
                     send_thread.join()
-                    #print("ola")
 
             except Exception as e:
                 print(f"\RP : An error occurred in start function: {e}")
