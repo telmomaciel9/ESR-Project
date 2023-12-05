@@ -45,9 +45,14 @@ class Bootstrap():
             print(f"  Vivo : {v['Vivo']}")
             print(f"  Ativo : {v['Ativo']}")
             print(f"  Peso Aresta : {v['Peso_Aresta']}")
-            print(f"  Streams : {v['Streams']}")
-            print(f"  Netos : {v['Netos']}")
+            #print(f"  Netos : {v['Netos']}")
             print(f"  Visited : {v['Visited']}")
+            for stream_id, values in v['Streams'].items():
+                print(f"  Stream ID: {stream_id}")
+                for ante,val in values.items():
+                    print(f"    Antecessor: {ante}")
+                    print(f"      Soma Acumulada: {val['Soma_Acumulada']}")
+                    print(f"      Caminho Ativo: {val['Ativo']}")
             print("------------------------------")
 
     def receive_messages(self):
@@ -82,7 +87,7 @@ class Bootstrap():
                                 for key, value in self.dic_with_neighbours.items():
                                     if host_addr in key:
                                         for v in value:
-                                            self.my_neighbours[tuple(v)] = {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Netos":[],"Visited" : False}                                              
+                                            self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Visited" : False}                                              
 
                             for key, value in self.dic_with_neighbours.items():
                                 for k in key:
@@ -104,16 +109,12 @@ class Bootstrap():
                             mensagem = Message("6", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, tambem consegues receber mensagens minhas?")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
-
-                            mensagem = Message("5", host_addr, (client_address,4000),
-                                               host_addr)
-                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
-
+                        
                         elif message_data["id"] == "6":
-                            mensagem = Message("7",  host_addr, (client_address,4000),"SIM")
-
+                            mensagem = Message("7",  host_addr, (client_address,4000),
+                                               "SIM")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
-
+                        
                         elif message_data["id"] == "7":
                             src = message_data["src"]
                             
@@ -121,28 +122,40 @@ class Bootstrap():
                                 if src in k:
                                     v["Vivo"] = True
                                     break
-                            
+
                             self.pprint_viz()
 
                         elif message_data["id"] == "8":#quando é um cliente a enviar
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
                             StreamId, time_sent_message, soma_acumulada_recebida = message_data["data"]
                             src = message_data["src"]
-                            dest = message_data["dest"]
 
                             time_now = int(time.time()*1000)
                             tempo_diff = time_now-time_sent_message
                             soma_acumulada = tempo_diff+soma_acumulada_recebida
                             
+                            
                             if src not in self.my_neighbours.keys():
                                 self.my_neighbours.setdefault(src, {})
-                            self.my_neighbours[src]["Vivo"] = 1
-                            self.my_neighbours[src]["Ativo"] = 1
+                            
+                            self.my_neighbours[src]["Vivo"] = True
+                            self.my_neighbours[src]["Ativo"] = True
                             self.my_neighbours[src]["Peso_Aresta"] = tempo_diff
-                            self.my_neighbours[src]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
                             self.my_neighbours[src]["Visited"] = True
-                            if "Netos" not in self.my_neighbours[k]:
-                                self.my_neighbours[k]["Neto"] = []
+
+                            if "Streams" not in self.my_neighbours[src]:
+                                self.my_neighbours[src]["Streams"] = {}
+
+                            src_string = str(src)
+                            if StreamId not in self.my_neighbours[src]["Streams"].keys():
+                                self.my_neighbours[src]["Streams"][StreamId] = {src_string: {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada,"Ativo":False}}
+                            else:
+                                if src_string not in self.my_neighbours[src]["Streams"][StreamId].keys():
+                                    self.my_neighbours[src]["Streams"][StreamId][src_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada,"Ativo":False}
+                                else:
+                                    if soma_acumulada < self.my_neighbours[src_string]["Streams"][StreamId][src_string]["Soma_Acumulada"]:
+                                        self.my_neighbours[src]["Streams"][StreamId][src_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada, "Ativo":False}
+
 
                             self.pprint_viz()
 
@@ -153,7 +166,8 @@ class Bootstrap():
                                         
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
-                                    
+
+                                   
                         elif message_data["id"] == "9": #entre nodos
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
                             StreamId,neto,time_sent_message,soma_acumulada_recebida = message_data["data"]
@@ -163,37 +177,66 @@ class Bootstrap():
                             tempo_diff = time_now-time_sent_message
                             soma_acumulada = tempo_diff+soma_acumulada_recebida
 
-                            for k,v in self.my_neighbours.items():
+                            chave = tuple()
+                            for k in self.my_neighbours.keys():
                                 if src in k:
-                                    self.my_neighbours[k]["Peso_Aresta"] = tempo_diff
-                                    self.my_neighbours[k]["Streams"] = {StreamId:{"Time_Sent_flood":time_sent_message,"Soma_Acumulada":soma_acumulada}}
-                                    self.my_neighbours[k]["Visited"] = True
-                                    if "Netos" not in self.my_neighbours[k]:
-                                        self.my_neighbours[k]["Netos"] = []
-                                    if neto not in self.my_neighbours[k]["Netos"]:    
-                                        self.my_neighbours[k]["Netos"].append(neto)
+                                    chave = k
                                     break
+
                             
+                            self.my_neighbours[chave]["Peso_Aresta"] = tempo_diff
+                            self.my_neighbours[chave]["Visited"] = True
+                            neto_string = str(neto)
+
+                            if StreamId not in self.my_neighbours[chave]["Streams"].keys():
+                                self.my_neighbours[chave]["Streams"][StreamId] = {neto_string: {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada,"Ativo":False}}
+                            else:
+                                if neto_string not in self.my_neighbours[chave]["Streams"][StreamId].keys():
+                                    self.my_neighbours[chave]["Streams"][StreamId][neto_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada,"Ativo":False}
+                                else:
+                                    if soma_acumulada < self.my_neighbours[chave]["Streams"][StreamId][neto_string]["Soma_Acumulada"]:
+                                        self.my_neighbours[chave]["Streams"][StreamId][neto_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada,"Ativo":False}
                             self.pprint_viz()
+
                             if not self.have_stream:
                                 for key,value in self.my_neighbours.items():
-                                    if value["Vivo"] == 1 and client_address not in key and value["Visited"] == False:
+                                    if value["Vivo"] == True and client_address not in key and value["Visited"] == False:
                                         lista = [StreamId, src, time_now, soma_acumulada]
-
+                                        print(f"\n\nasldkfjasdljf\n{key[0]}")
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
+                        
                         elif message_data["id"] == "10":
-                            StreamId,avo,time_I_sent_message,soma_acumulada_enviada = message_data["data"]
+                            StreamId,avo,filho = message_data["data"]
 
-                            self.my_neighbours[src]
+                            chave = tuple()
+                            for k in self.my_neighbours.keys():
+                                if filho in k:
+                                    chave = k
+                                    break
 
+                            next_node = tuple()
+                            for n in self.my_neighbours.keys():
+                                if filho in n:
+                                    next_node = n
 
-                            self.pai = message_data["data"][0]
-                            timeStamp_mensagem_enviada = message_data["data"][1]
-                            soma_acumulada_mensagem_enviada = message_data["data"][2]
+                            neto = self.escolher_melhor_neto(next_node,StreamId)
+                                
+                            self.my_neighbours[next_node]["Ativo"] = True
+                            self.my_neighbours[next_node]["Streams"][StreamId][neto]["Ativo"]=True
+                            lista = [StreamId,host_addr,neto]
+                            print(f"\n\n alalalalala {next_node[0]}")
+                            if isinstance(next_node,tuple):
+                                mensagem = Message("10",host_addr,(next_node[0],4000),lista)
+                            elif isinstance(next_node,str):
+                                mensagem = Message("10",host_addr,(next_node,4000),lista)
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
+                            self.have_stream =True
 
-                            #for k,v in self.my_neighbours.items():
-                            #    if v[""]
+                            self.pprint_viz()
+                            
+                            
+
 
 
 

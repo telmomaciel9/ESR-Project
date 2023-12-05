@@ -33,9 +33,14 @@ class RP():
             print(f"  Vivo : {v['Vivo']}")
             print(f"  Ativo : {v['Ativo']}")
             print(f"  Peso Aresta : {v['Peso_Aresta']}")
-            print(f"  Streams : {v['Streams']}")
-            print(f"  Netos : {v['Netos']}")
+            #print(f"  Netos : {v['Netos']}")
             print(f"  Visited : {v['Visited']}")
+            for stream_id, values in v['Streams'].items():
+                print(f"  Stream ID: {stream_id}")
+                for ante,val in values.items():
+                    print(f"    Antecessor: {ante}")
+                    print(f"      Soma Acumulada: {val['Soma_Acumulada']}")
+                    print(f"      Caminho Ativo: {val['Ativo']}")
             print("------------------------------")
 
 
@@ -57,16 +62,41 @@ class RP():
             except Exception as e:
                     print(f"\nRP : An error occurred while receiving messages: {e}")
     
-    def escolher_melhor_nodo(self,StreamId):
-        nodos_ativos = [nodo for nodo, info in self.my_neighbours.items() if info["Ativo"]]
-    
+    def escolher_melhor_nodo(self, StreamId):
+        nodos_ativos = []
+        melhor_nodo = None
+        melhor_ant = None
+        melhor_soma_acumulada = float('inf')
+
+        for node, info in self.my_neighbours.items():
+            if info["Ativo"]:
+                nodos_ativos.append(node)
+
         if not nodos_ativos:
-            return None  # Nenhum caminho ativo no momento
+            return None,None
+        else:
+            for n in nodos_ativos:
+                for ante, info in self.my_neighbours[n]["Streams"][StreamId].items():
+                    if info["Soma_Acumulada"] < melhor_soma_acumulada:
+                        melhor_soma_acumulada = info["Soma_Acumulada"]
+                        melhor_nodo = n
+                        melhor_ant = ante
 
-        melhor_nodo = min(nodos_ativos, key=lambda nodo: self.my_neighbours[nodo]["Streams"][StreamId]["Soma_Acumulada"])
-    
-        return melhor_nodo
+        return melhor_nodo,melhor_ant
 
+    def antigo_melhor_nodo(self, StreamId):
+        nodo_anterior = None
+        anterior_anterior = None
+
+        for node,value in self.my_neighbours.items():
+            if value["Ativo"] and StreamId in value["Streams"].keys():
+                nodo_anterior = node
+                for ante,val in self.my_neighbours[node]["Streams"][StreamId].items():
+                    if val["Ativo"]:
+                        anterior_anterior = ante
+                        break
+
+        return nodo_anterior,anterior_anterior
 
     def process_messages(self):
         while True:
@@ -83,7 +113,7 @@ class RP():
                             result_string = json.loads(info)
 
                             for v in result_string:
-                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Netos":[],"Visited" : False}
+                                self.my_neighbours[tuple(v)]= {"Vivo":False, "Ativo":False,"Peso_Aresta": 0,"Streams":{},"Visited" : False}
 
                             self.pprint_viz()
 
@@ -129,36 +159,53 @@ class RP():
                                 if src in k:
                                     chave = k
                                     break
-
-                            # Operações críticas começam aqui
                             
                             self.my_neighbours[chave]["Peso_Aresta"] = tempo_diff
-                            self.my_neighbours[chave]["Streams"] = {StreamId: {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada}}
                             self.my_neighbours[chave]["Visited"] = True
-                            if "Neto" not in self.my_neighbours[chave]:
-                                self.my_neighbours[chave]["Neto"] = []
-                            if neto not in self.my_neighbours[chave]["Neto"]:
-                                self.my_neighbours[chave]["Neto"].append(neto)
 
-                            self.pprint_viz()
+                            neto_string = str(neto)
                             
-                            melhor_nodo = self.escolher_melhor_nodo(StreamId)
-                            print(melhor_nodo)
-                            if melhor_nodo:
-                                print(f"\nMelhor nodo escolhido: {melhor_nodo}")
-                                # Envie a mensagem para o melhor caminho
-                                lista = [StreamId, host_addr, time_sent_message, soma_acumulada_recebida]
+                            if StreamId not in self.my_neighbours[chave]["Streams"].keys():
+                                self.my_neighbours[chave]["Streams"][StreamId] = {neto_string: {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada, "Ativo": False}}
+                            else:
+                                if neto_string not in self.my_neighbours[chave]["Streams"][StreamId].keys():
+                                    self.my_neighbours[chave]["Streams"][StreamId][neto_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada, "Ativo": False}
+                                else:
+                                    if soma_acumulada < self.my_neighbours[chave]["Streams"][StreamId][neto_string]["Soma_Acumulada"]:
+                                        self.my_neighbours[chave]["Streams"][StreamId][neto_string] = {"Time_Sent_flood": time_sent_message, "Soma_Acumulada": soma_acumulada, "Ativo" : False}
+
+                            
+                            nodo_anterior,ant_anterior = self.antigo_melhor_nodo(StreamId)
+                            melhor_nodo,melhor_ant = self.escolher_melhor_nodo(StreamId)
+                            
+                            print(f"\nNodo anterior: {nodo_anterior}")
+                            print(f"\nMelhor nodo: {melhor_nodo}")
+
+                            #for k,v in self.my_neighbours[chave][]
+                            if (melhor_nodo != nodo_anterior) and melhor_nodo!=None and nodo_anterior!=None:
+                                self.my_neighbours[melhor_nodo]["Ativo"] = True
+                                self.my_neighbours[melhor_nodo]["Streams"][StreamId][melhor_ant]["Ativo"] = True
+                                lista = [StreamId, host_addr, melhor_ant]
                                 mensagem = Message("10", host_addr, (melhor_nodo[0], 4000), lista)
                                 self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
-                            else:
+
+
+                                self.my_neighbours[nodo_anterior]["Ativo"] = False
+                                self.my_neighbours[nodo_anterior]["Streams"][StreamId][ant_anterior]["Ativo"] = False
+                                lista= [StreamId,host_addr,ant_anterior]
+                                mensagem = Message("11",host_addr,(nodo_anterior[0],4000),lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
+
+                            if melhor_nodo == None and nodo_anterior == None:
+                                print("\nAinda não tenho nodo para mandar essa stream")
                                 self.my_neighbours[chave]["Ativo"] = True
-                                lista = [StreamId, host_addr, time_sent_message, soma_acumulada_recebida]
+                                self.my_neighbours[chave]["Streams"][StreamId][neto]["Ativo"] = True
+                                lista = [StreamId, host_addr, neto]
+                                
                                 mensagem = Message("10", host_addr, (src, 4000), lista)
                                 self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
-                                print("\nAtivando novo caminho")
 
-                            
-                        
+                            self.pprint_viz()
                         
 
                     except json.JSONDecodeError as e:
