@@ -5,7 +5,10 @@ import threading
 from tkinter import *
 from tkinter import messagebox
 from PIL import Image, ImageTk, ImageFile
+from Message import Message
+import json 
 
+#from RtpPacket import RtpPacket
 from RtpPacket import RtpPacket
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -66,11 +69,17 @@ class ClienteGUI:
         self.tcpSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcpSocket.connect((self.node_ip, self.port_tcp))
         print("Sending")
-        self.tcpSocket.sendall(b"Stream")
+        #self.tcpSocket.sendall("Stream".encode())
+        message = Message("14",self.tcpSocket.getsockname()[0],self.tcpSocket.getpeername()[0],"Stream")
+        sent_message = json.dumps(message.__dict__)
+        self.tcpSocket.send(sent_message.encode())
 
     def exitClient(self):
         if self.tcpSocket:
-            self.tcpSocket.sendall(b"Stop")
+            #self.tcpSocket.sendall("Stop".encode())
+            message = Message("15",self.tcpSocket.getsockname()[0],self.tcpSocket.getpeername()[0],"Stop")
+            sent_message = json.dumps(message.__dict__)
+            self.tcpSocket.send(sent_message.encode())
             self.tcpSocket.close()
             os.remove(os.path.expanduser('~') + "/" + CACHE_FILE_NAME +
                       str(self.sessionId) + CACHE_FILE_EXT)  # Delete the cache image from video

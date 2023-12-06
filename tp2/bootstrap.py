@@ -6,7 +6,7 @@ import queue
 from Message import Message
 
 class Bootstrap():
-    def __init__(self, ):
+    def __init__(self, my_neighbours):
         self.wg = threading.Event()
         self.lock = threading.Lock()
 
@@ -15,7 +15,7 @@ class Bootstrap():
 
         self.have_stream = False
         self.clients = []
-        self.my_neighbours= dict()
+        self.my_neighbours= my_neighbours
         self.dic_with_neighbours = {}
 
         self.bootstrap_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -63,25 +63,64 @@ class Bootstrap():
                 data = client_socket.recv(1024)
                 client_address = client_socket.getpeername()[0]
                 host_addr = client_socket.getsockname()[0]
-                print(f"\nBOTTSTRAP [RECEIVE THREAD] : RECEIVED THIS MESSAGE FROM {client_address}: {data}")
+                print(f"\nBOOTSTRAP [RECEIVE THREAD] : RECEIVED THIS MESSAGE FROM {client_address}: {data}")
                 if not data:
                     break
                 with self.lock:
-                    self.receive_queue.put((data, host_addr,client_address))
+                    try:
+                        # Try to decode the data as JSON
+                        json_data = json.loads(data.decode())
+                        is_json = True
+                    except json.JSONDecodeError:
+                        # If decoding fails, assume it's not JSON
+                        is_json = False
+
+                    if is_json:
+                        self.receive_queue.put((data, host_addr, client_address, True))
+                    else:
+                        self.receive_queue.put((data, host_addr, client_address, False))
+
             except Exception as e:
-                    print(f"\nBOOTSTRAP : An error occurred while receiving messages: {e}")
-   
+                print(f"\nBOOTSTRAP : An error occurred while receiving messages: {e}")
+
+
+    def escolher_melhor_neto(self, filho, StreamId):
+        melhor_soma_acumulada = float('inf')
+        netinho = None
+
+        for neto,val in self.my_neighbours[filho]["Streams"][StreamId].items():
+            if val["Soma_Acumulada"]<melhor_soma_acumulada:
+                melhor_soma_acumulada = val["Soma_Acumulada"]
+                netinho = neto
+        
+        return netinho
+
     def process_messages(self):
         while True:
             with self.lock:
                 if not self.receive_queue.empty():
-                    data, host_addr,client_address = self.receive_queue.get()
+                    data, host_addr,client_address, isMessage = self.receive_queue.get()
                     print(f"\nBOOTSTRAP [PROCESS TREAD] : GOING TO PROCESS A MESSAGE {data}")
                     try:
+                        message_data = None
+                        
+                        if isMessage:
                         # Deserialize the JSON data into a Python object
-                        message_data = json.loads(data.decode())
+                            message_data = json.loads(data.decode())
+                        else:
+                            message_data = data.decode()
+                            
 
-                        if message_data["id"] == "1":
+                        if message_data == "Stream" or message_data == "Stop":
+                            for k, v in self.my_neighbours.items():
+                                if v["Ativo"] == True and client_address not in k:
+                                    print(f"\n\n{k}")
+                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                    client_socket.connect((k[0], 4000))
+                                    self.process_queue.put((message_data, client_socket, True))
+                                    break
+
+                        elif message_data["id"] == "1":
                             isNode = False
                             if len(self.my_neighbours) == 0:
                                 for key, value in self.dic_with_neighbours.items():
@@ -109,6 +148,10 @@ class Bootstrap():
                             mensagem = Message("6", host_addr, (client_address,4000),
                                                "Recebi a tua mensagem, tambem consegues receber mensagens minhas?")
                             self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+                            mensagem = Message("5", host_addr, (client_address,4000),
+                                               host_addr)
+                            self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+
                         
                         elif message_data["id"] == "6":
                             mensagem = Message("7",  host_addr, (client_address,4000),
@@ -209,11 +252,14 @@ class Bootstrap():
                         elif message_data["id"] == "10":
                             StreamId,avo,filho = message_data["data"]
 
+                            src = message_data["src"]
+
                             chave = tuple()
                             for k in self.my_neighbours.keys():
-                                if filho in k:
+                                if src in k:
                                     chave = k
                                     break
+
 
                             next_node = tuple()
                             for n in self.my_neighbours.keys():
@@ -221,7 +267,7 @@ class Bootstrap():
                                     next_node = n
 
                             neto = self.escolher_melhor_neto(next_node,StreamId)
-                                
+                            self.my_neighbours[chave]["Ativo"] = True
                             self.my_neighbours[next_node]["Ativo"] = True
                             self.my_neighbours[next_node]["Streams"][StreamId][neto]["Ativo"]=True
                             lista = [StreamId,host_addr,neto]
@@ -233,7 +279,7 @@ class Bootstrap():
                             self.process_queue.put((json.dumps(mensagem.__dict__), None, False))
                             self.have_stream =True
 
-                            self.pprint_viz()
+                            self.pprint_viz()   
                             
                             
 
@@ -251,22 +297,34 @@ class Bootstrap():
             with self.lock:
                 if not self.process_queue.empty():
                     client_socket = None
+                    print(f"\n\Size da queue : {self.process_queue.qsize()}")
                     data, client_socket, Socket_is_Created = self.process_queue.get()
+                    
+                    ip_destino = ""
+                    port_destino = 4000
+                    try:
+                        # Try to decode the data as JSON
+                        message_data = json.loads(data)
+                        ip_destino = message_data["dest"][0]
 
-                    message_data = json.loads(data)
-                    ip_destino = message_data["dest"][0]
-                    port_destino = message_data["dest"][1]
+                        port_destino = message_data["dest"][1]
+                    except json.JSONDecodeError:
+                        # If decoding fails, assume it's not JSON
+                        ip_destino = client_socket.getpeername()[0]
+
+
                     if not Socket_is_Created:
                         client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                         client_socket.connect((ip_destino,port_destino))
+                        #self.clients_sockets.append(client_socket)
                     try:
-                        
                         client_socket.send(data.encode())
-                        print(f"\nBOOTSTRAP [SEND THREAD] : SENT THIS MESSAGE TO ({ip_destino},{port_destino}) : {data}")
+                        print(f"\nBOOTSTRAP [SEND THREAD] : SENT THIS MESSAGE TO ({ip_destino},{port_destino}) : {data} ")
+
                     except json.JSONDecodeError as e:
                         print(f"\nBOOTSTRAP [SEND THREAD] : Error decoding JSON data: {e}")
                     except Exception as e:
-                        print(f"\nBOOTSTRAP [SEND THREAD] : Error sending message in the send_messages function: {e}")
+                        print(f"\nBOOTSTRAP [SEND THREAD] :  Error sending message in the send_messages function: {e}")
                     
                             
 
@@ -282,7 +340,7 @@ class Bootstrap():
                 process_thread = threading.Thread(target=self.process_messages, args=())
                 send_thread = threading.Thread(target=self.send_messages, args=())
                 
-                print(f"\nTCP : OS MEUS VIZINHOS: {self.my_neighbours}")
+                print(f"\nBOOTSTRAP : OS MEUS VIZINHOS: {self.my_neighbours}")
 
                 receive_thread.start()
                 process_thread.start()

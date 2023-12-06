@@ -5,29 +5,28 @@ from ONodeTCP import ONodeTCP
 from ONodeUDP import ONodeUDP
 from bootstrap import Bootstrap
 from RP import RP
+from multiprocessing import Manager
 
 
 class ONode():
     def __init__(self, bootstrap_ip,bootstrap_mode,rp_mode):
         self.wg = threading.Event()
         self.threads = []
-        
+        #self.shared_manager = Manager()
+        self.my_neighbours = dict()
         self.rp_mode = rp_mode
         if self.rp_mode:
-            self.rp = RP(bootstrap_ip)
+            self.rp = RP(bootstrap_ip,self.my_neighbours)
         
         self.bootstrap_mode = bootstrap_mode
         if self.bootstrap_mode:
-            self.bootstrap= Bootstrap()
+            self.bootstrap= Bootstrap(self.my_neighbours)
     
-        self.ONode_udp = ONodeUDP()
+        self.ONode_udp = ONodeUDP(self.my_neighbours)
         if not self.rp_mode and not self.bootstrap_mode:
-            self.ONode_tcp = ONodeTCP(bootstrap_ip)
+            self.ONode_tcp = ONodeTCP(bootstrap_ip,self.my_neighbours)
 
-        
-
-    def start(self):
-        
+    def start(self):        
         self.threads.append(threading.Thread(target=self.ONode_udp.start))
         if not self.rp_mode and not self.bootstrap_mode:
             self.threads.append(threading.Thread(target=self.ONode_tcp.start))
@@ -37,14 +36,6 @@ class ONode():
             self.threads.append(threading.Thread(target=self.rp.start))
         for thread in self.threads:
             thread.start()
-
-    def stop(self):
-        self.wg.set()
-        for thread in self.threads:
-            thread.join()
-
-        #self.ONode_tcp.stop()
-        self.ONode_udp.stop()
 
 if __name__ == "__main__":
     # in case bootstrap mode is 1, otherwise, it is equal to 0
@@ -60,6 +51,7 @@ if __name__ == "__main__":
     elif(sys.argv[1].lower() == "--rp"):    
         rp_mode = 1
         bootstrap_ip = sys.argv[2]
+        
         #abordagem para saber os servidores era passar como um argumento
     
     else:

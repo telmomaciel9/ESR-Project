@@ -1,55 +1,73 @@
 import socket
 import threading
 import time
+import queue
 
 class ONodeUDP:
-    def __init__(self):
-
+    def __init__(self,my_neighbours):
+        self.receive_queue = queue.Queue()
+        self.process_queue = queue.Queue()
         self.wg = threading.Event()
         self.threads = []
-
-    def create_and_bind_socket(self):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            server_socket.bind(("0.0.0.0", 5000))
-            return server_socket
+            self.server_socket.bind(("",3000))
         except socket.error as e:
-            print(f"UDP : Socket Error: {e}")
+            print(f"\nUDP: Socker Erro on Binding: {e}")
 
-    def udp_receive(self, socket):
+
+    def receive_messages(self):
         try:
             while not self.wg.is_set():
-                data, remetente = socket.recvfrom(1024)
-                print(f"UDP : Received message from {remetente}: {data.decode()}\n")
-                # Process the received message as needed
+                data, remetente = self.server_socket.recvfrom(1024)
+                print(f"UDP [Receive]: Received message from {remetente}: {data}\n")
+                self.receive_queue.put(data,remetente)
         except Exception as e:
-            print(f"UDP : An error occurred while receiving messages: {e}")
+            print(f"\nUDP : An error occurred while receiving messages: {e}")
 
-    def udp_send(self, socket, remetente, message):
+    def process_messages(self):
         try:
-            for i in range(5):
-                time.sleep(2)
-                print(f"UDP : Sending message to {remetente}: {message}\n")
-                socket.sendto(message.encode(), remetente)
+            if not self.receive_queue.empty():
+                data, remetente = self.receive_queue.get()
+                print(f"\nUDP [Process] : Going to process this message: {data}")
+
+                dest = None
+
+                for k,v in self.my_neighbours.items():
+                    if v["Ativo"]:
+                        dest = k
+
+
+                self.process_queue.put(data,dest)
         except Exception as e:
-            print(f"UDP : An error occurred while sending messages: {e}")
+            print(f"\nUDP [Process] : An error occured while processing messages: {e}")
+
+    def send_messages(self):
+        try:
+            if not self.process_queue.empty():
+                data,dest = self.process_queue.get()
+                socket.sendto(data.encode(), dest)
+                print(f"UDP : Sent message to {dest}: {data}\n")
+        except Exception as e:
+            print(f"\nUDP : An error occurred while sending messages: {e}")
 
     def start(self):
         try:
-            server_socket = self.create_and_bind_socket()
-            #print(f"UDP : Listening on {self.server_ip}:{self.server_port} ")
+            receive_thread = threading.Thread(target=self.receive_messages, args=())
+            process_thread = threading.Thread(target=self.process_messages, args=())
+            send_thread = threading.Thread(target=self.send_messages, args=())
 
-            while not self.wg.is_set():
-                data, remetente = server_socket.recvfrom(1024)
+            self.threads.extend([receive_thread, process_thread, send_thread])
 
-                receive_thread = threading.Thread(target=self.udp_receive, args=(server_socket,))
-                send_thread = threading.Thread(target=self.udp_send, args=(server_socket, remetente, "UDP : Eu também :)"))
+            for thread in self.threads:
+                thread.start()
 
-                receive_thread.start()
-                send_thread.start()
+            for thread in self.threads:
+                thread.join()
 
         except Exception as e:
-            print(f"UDP : An error occurred: {e}")
+            print(f"\nUDP : An error occurred: {e}")
         finally:
-            if server_socket:
-                server_socket.close()
+            if self.server_socket:
+                self.server_socket.close()
+

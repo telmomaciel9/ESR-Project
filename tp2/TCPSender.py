@@ -4,7 +4,10 @@ import sys
 import time
 import json
 from Message import Message
-
+from tkinter import Tk
+from ClienteGUI import ClienteGUI
+from RtpPacket import RtpPacket
+#from ClienteGUI import ClienteGUI
 
 class TCPSender:
     def __init__ (self,ip):
@@ -51,4 +54,13 @@ if __name__ == "__main__":
 
     cliente = TCPSender(connect_to_ip)
     cliente.start()
+
+    self_addr = '127.0.0.1'
+
+    root = Tk()
+    
+    # Create a new client
+    app = ClienteGUI(root, self_addr, 3000, connect_to_ip, 4000)
+    app.master.title("Cliente Exemplo")
+    root.mainloop()
             
