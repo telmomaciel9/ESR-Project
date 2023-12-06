@@ -7,6 +7,7 @@ class ONodeUDP:
     def __init__(self,my_neighbours):
         self.receive_queue = queue.Queue()
         self.process_queue = queue.Queue()
+        self.my_neighbours = my_neighbours
         self.wg = threading.Event()
         self.threads = []
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -20,36 +21,51 @@ class ONodeUDP:
         try:
             while not self.wg.is_set():
                 data, remetente = self.server_socket.recvfrom(1024)
-                print(f"UDP [Receive]: Received message from {remetente}: {data}\n")
-                self.receive_queue.put(data,remetente)
+                print(f"UDP [Receive]: Received message from {remetente}: Pedido Recebido\n")
+                self.receive_queue.put((data,remetente[0]))
+                print(f"rem rem : {remetente}")
+                print(f"fsdklj : {remetente[0]}")
         except Exception as e:
             print(f"\nUDP : An error occurred while receiving messages: {e}")
 
     def process_messages(self):
         try:
-            if not self.receive_queue.empty():
-                data, remetente = self.receive_queue.get()
-                print(f"\nUDP [Process] : Going to process this message: {data}")
+            while not self.wg.is_set():
+                if not self.receive_queue.empty():
+                    data, remetente = self.receive_queue.get()
+                    print("-----------------------------------------------------")
+                    print(f"\nUDP [Process] : Going to process this message: pedido de stream")
 
-                dest = None
+                    dest = None
 
-                for k,v in self.my_neighbours.items():
-                    if v["Ativo"]:
-                        dest = k
+                    for k,v in self.my_neighbours.items():
+                        if v["Ativo"] and remetente not in k:
+                            dest = k
+                            print(f"\ndest dest dest: : : : : {dest}")
 
 
-                self.process_queue.put(data,dest)
+                    self.process_queue.put((data,dest))
         except Exception as e:
             print(f"\nUDP [Process] : An error occured while processing messages: {e}")
 
     def send_messages(self):
-        try:
-            if not self.process_queue.empty():
-                data,dest = self.process_queue.get()
-                socket.sendto(data.encode(), dest)
-                print(f"UDP : Sent message to {dest}: {data}\n")
-        except Exception as e:
-            print(f"\nUDP : An error occurred while sending messages: {e}")
+        while True:
+            send_soc = None
+            try:
+                if not self.process_queue.empty():
+                    send_soc = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                    data,dest = self.process_queue.get()
+                    print(f"\n\n-----\n{dest}")
+                    if(isinstance(dest,tuple)):
+                        send_soc.sendto(data, (dest[0],3000))
+                    elif(isinstance(dest,str)):
+                        send_soc.sendto(data,(dest,3000))
+                    print(f"UDP : Sent message to {dest}: pedido stream\n")
+            except Exception as e:
+                print(f"\nUDP : An error occurred while sending messages: {e}")
+            finally:
+                if send_soc:
+                    send_soc.close()
 
     def start(self):
         try:
@@ -57,13 +73,13 @@ class ONodeUDP:
             process_thread = threading.Thread(target=self.process_messages, args=())
             send_thread = threading.Thread(target=self.send_messages, args=())
 
-            self.threads.extend([receive_thread, process_thread, send_thread])
+            receive_thread.start()
+            process_thread.start()
+            send_thread.start()
 
-            for thread in self.threads:
-                thread.start()
-
-            for thread in self.threads:
-                thread.join()
+            receive_thread.join()
+            process_thread.join()
+            send_thread.join()
 
         except Exception as e:
             print(f"\nUDP : An error occurred: {e}")
