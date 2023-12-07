@@ -193,11 +193,6 @@ class ONodeTCP:
                                 self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
 
 
-
-
-
-        
-
                         elif message_data["id"] == "9": #entre nodos
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
                             StreamId,neto,time_sent_message,soma_acumulada_recebida = message_data["data"]
@@ -212,7 +207,6 @@ class ONodeTCP:
                                 if src in k:
                                     chave = k
                                     break
-
 
                             self.my_neighbours[chave]["Peso_Aresta"] = tempo_diff
                             self.my_neighbours[chave]["Visited"] = True

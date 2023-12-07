@@ -126,21 +126,7 @@ class RP():
                         else:
                             message_data = data.decode()
                             
-
-                        if message_data == "Stream" or message_data == "Stop":
-                            for k,v in self.servidores.items():
-                                if v:
-                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
-                                    client_socket.connect((k, 4000))
-                                    self.process_queue.put((message_data, client_socket, True))
-
-
-                        elif message_data == "Server connected":
-                            self.servidores[client_address] = True       
-                            print(f"\nservidores ativos {self.servidores.keys()}") 
-
-                            
-                        elif message_data["id"] == "2":
+                        if message_data["id"] == "2":
                             info = message_data["data"]
                             result_string = json.loads(info)
 
@@ -239,21 +225,48 @@ class RP():
 
                             self.pprint_viz()
 
+                        elif message_data["id"] =="13":
+                            ip,time_sent = message_data["data"]
+
+                            time_now = int(time.time()*1000)
+                            time_diff = time_now - time_sent
+                            self.servidores[client_address]["Vivo"] = True
+                            self.servidores[client_address]["Latencia"] = time_diff 
+                            self.servidores[client_address]["Ativo"] = False   
+                            print(f"\nservidores ativos {self.servidores.keys()}") 
+
 
                         elif message_data["id"] == "14":
                             if not self.have_stream:
                                 #calcular o ip do melhor servidor
                                 #mandar esta mensagem para pedir para straemmar
+
+                                melhor_latencia = float('inf')
+                                melhor_servidor = None
+
+
                                 for k,v in self.servidores.items():
-                                    if v:
+                                    if v["Latencia"]<melhor_latencia:
+                                        melhor_latencia = v["Latencia"]
+                                        melhor_nodo = k
+
+                                self.servidores[melhor_nodo]["Ativo"] = True
+                                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+                                client_socket.connect((melhor_nodo, 4000))
+                                message = Message("14",host_addr,(melhor_nodo,4000),"Stream")
+                                self.process_queue.put((json.dumps(message.__dict__), client_socket, True))
+
+                        elif message_data["id"] == "15":
+                            if not self.have_stream:
+                                #calcular o ip do melhor servidor
+                                #mandar esta mensagem para pedir para straemmar
+                                for k,v in self.servidores.items():
+                                    if v["Ativo"]:
                                         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
                                         client_socket.connect((k, 4000))
-                                        message = Message("14",host_addr,(k,4000),"Stream")
+                                        message = Message("15",host_addr,(k,4000),"Stop")
                                         self.process_queue.put((json.dumps(message.__dict__), client_socket, True))
 
-                        elif message_data["id"] =="13":
-                            self.servidores[client_address] = True       
-                            print(f"\nservidores ativos {self.servidores.keys()}") 
 
                     except json.JSONDecodeError as e:
                         print(f"\nRP [PROCESS TREAD] : Error decoding JSON data: {e}")

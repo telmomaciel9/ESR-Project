@@ -106,9 +106,7 @@ class Server:
                                 self.is_Streaming = True
                                 print("vou começar a streamar!\n")
                                 serverStreamer = serverThread(self.rp_ip,"movie.Mjpeg")
-                                print("ejejej")
                                 serverStreamer.start()
-                                print("eheheh")
                             
                             elif message_data["id"] == "15" and self.is_Streaming:
                                 self.is_Streaming = False
@@ -159,7 +157,9 @@ class Server:
         try:
             client_socket.connect((ip, port))
             if purpose == 1:
-                messagem = Message("13",client_socket.getsockname()[0],(ip,port),client_socket.getsockname()[0])
+                time_now = int(time.time()*1000)
+                lista = [client_socket.getsockname()[0],time_now]
+                messagem = Message("13",client_socket.getsockname()[0],(ip,port),lista)
                 self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
            
         except Exception as e:

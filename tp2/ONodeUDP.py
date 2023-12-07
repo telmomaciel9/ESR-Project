@@ -51,6 +51,7 @@ class ONodeUDP:
                 if not self.process_queue.empty():
                     send_soc = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
                     data,dest = self.process_queue.get()
+
                     if(isinstance(dest,tuple)):
                         send_soc.sendto(data, (dest[0],3000))
                     elif(isinstance(dest,str)):

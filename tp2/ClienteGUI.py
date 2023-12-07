@@ -115,6 +115,9 @@ class ClienteGUI:
                         self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
                 if self.playEvent.is_set():
                     break
+            except Exception as e:
+                print(f"\nClientGui: An error occurred : {e}")
+                break
             except:
                 self.rtpSocket.shutdown(socket.SHUT_RDWR)
                 self.rtpSocket.close()
