@@ -22,7 +22,7 @@ class ONodeUDP:
         try:
             while not self.wg.is_set():
                 data, remetente = self.server_socket.recvfrom(20480)
-                print(f"UDP [Receive]: Received message from {remetente}: Pedido Recebido\n")
+                #print(f"UDP [Receive]: Received message from {remetente}: Pedido Recebido\n")
                 self.receive_queue.put((data,remetente[0]))
         except Exception as e:
             print(f"\nUDP : An error occurred while receiving messages: {e}")
@@ -32,7 +32,7 @@ class ONodeUDP:
             while not self.wg.is_set():
                 if not self.receive_queue.empty():
                     data, remetente = self.receive_queue.get()
-                    print(f"\nUDP [Process] : Going to process this message: pedido de stream")
+                    #print(f"\nUDP [Process] : Going to process this message: pedido de stream")
 
                     dest = None
 
@@ -55,7 +55,7 @@ class ONodeUDP:
                         send_soc.sendto(data, (dest[0],3000))
                     elif(isinstance(dest,str)):
                         send_soc.sendto(data,(dest,3000))
-                    print(f"UDP : Sent message to {dest}: pedido stream\n")
+                    #print(f"UDP : Sent message to {dest}: pedido stream\n")
             except Exception as e:
                 print(f"\nUDP : An error occurred while sending messages: {e}")
             finally:

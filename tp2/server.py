@@ -179,9 +179,12 @@ class Server:
                 receive_thread.start()
                 process_thread.start()
                 send_thread.start()
+                while 1:
 
-                self.connect_to_other_node(self.rp_ip,4000,1)
-    
+                    self.connect_to_other_node(self.rp_ip,4000,1)
+                    time.sleep(5)
+
+
                 receive_thread.join()
                 process_thread.join()
                 send_thread.join()

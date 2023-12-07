@@ -348,6 +348,7 @@ class Bootstrap():
     def start(self):
         try:
             self.read_neighbours_file("bootstraptestea.json")
+            #self.read_neighbours_file("topologia.json")
 
             self.bootstrap_socket.listen(5)
 

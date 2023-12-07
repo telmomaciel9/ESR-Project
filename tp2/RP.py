@@ -238,7 +238,7 @@ class RP():
                             if not self.have_stream:
                                 #calcular o ip do melhor servidor
                                 #mandar esta mensagem para pedir para straemmar
-
+                                for 
                                 melhor_latencia = float('inf')
                                 melhor_servidor = None
 
