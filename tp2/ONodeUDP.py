@@ -39,8 +39,7 @@ class ONodeUDP:
                     for k,v in self.my_neighbours.items():
                         if v["Ativo"] and remetente not in k:
                             dest = k
-
-                    self.process_queue.put((data,dest))
+                            self.process_queue.put((data,dest))
         except Exception as e:
             print(f"\nUDP [Process] : An error occured while processing messages: {e}")
 

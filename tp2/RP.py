@@ -230,9 +230,7 @@ class RP():
 
                             time_now = int(time.time()*1000)
                             time_diff = time_now - time_sent
-                            self.servidores[client_address]["Vivo"] = True
-                            self.servidores[client_address]["Latencia"] = time_diff 
-                            self.servidores[client_address]["Ativo"] = False   
+                            self.servidores[client_address]= {"Vivo":True,"Latencia":time_diff,"Ativo":False}
                             print(f"\nservidores ativos {self.servidores.keys()}") 
 
 
@@ -262,11 +260,12 @@ class RP():
                                 #mandar esta mensagem para pedir para straemmar
                                 for k,v in self.servidores.items():
                                     if v["Ativo"]:
+                                        v["Ativo"] = False
                                         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
                                         client_socket.connect((k, 4000))
                                         message = Message("15",host_addr,(k,4000),"Stop")
                                         self.process_queue.put((json.dumps(message.__dict__), client_socket, True))
-
+                                        break
 
                     except json.JSONDecodeError as e:
                         print(f"\nRP [PROCESS TREAD] : Error decoding JSON data: {e}")

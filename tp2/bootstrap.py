@@ -109,18 +109,8 @@ class Bootstrap():
                             message_data = json.loads(data.decode())
                         else:
                             message_data = data.decode()
-                            
-
-                        if message_data == "Stream" or message_data == "Stop":
-                            for k, v in self.my_neighbours.items():
-                                if v["Ativo"] == True and client_address not in k:
-                                    print(f"\n\n{k}")
-                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                                    client_socket.connect((k[0], 4000))
-                                    self.process_queue.put((message_data, client_socket, True))
-                                    break
-
-                        elif message_data["id"] == "1":
+                        
+                        if message_data["id"] == "1":
                             isNode = False
                             if len(self.my_neighbours) == 0:
                                 for key, value in self.dic_with_neighbours.items():
@@ -291,7 +281,24 @@ class Bootstrap():
 
                             self.pprint_viz()   
                             
-                            
+                        elif message_data["id"] == "14":
+                            for k, v in self.my_neighbours.items():
+                                if v["Ativo"] == True and client_address not in k:
+                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                    client_socket.connect((k[0], 4000))
+                                    message = Message("14",host_addr,(k[0],4000),"Stream")
+                                    #sent_message = json.dumps(message.__dict__)
+                                    self.process_queue.put((json.dumps(message.__dict__),client_socket,True))
+
+                        elif message_data["id"] == "15":
+                            for k, v in self.my_neighbours.items():
+                                if v["Ativo"] == True and client_address not in k:
+                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                    client_socket.connect((k[0], 4000))
+                                    message = Message("15",host_addr,(k[0],4000),"Stop")
+                                    #sent_message = json.dumps(message.__dict__)
+                                    self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
+
 
 
 
