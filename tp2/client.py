@@ -7,9 +7,8 @@ from Message import Message
 from tkinter import Tk
 from ClienteGUI import ClienteGUI
 from RtpPacket import RtpPacket
-#from ClienteGUI import ClienteGUI
 
-class TCPSender:
+class Client:
     def __init__ (self,ip):
         self.ip_to_connect = ip
         self.my_neighbours = dict()
@@ -52,7 +51,7 @@ if __name__ == "__main__":
     
     connect_to_ip = sys.argv[1]
 
-    cliente = TCPSender(connect_to_ip)
+    cliente = Client(connect_to_ip)
     cliente.start()
 
     self_addr = '127.0.0.1'
