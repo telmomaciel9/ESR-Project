@@ -8,7 +8,7 @@ import bisect
 
 
 class ONodeTCP:
-    def __init__(self, bootstrap_ip,my_neighbours):
+    def __init__(self, bootstrap_ip,my_neighbours,have_stream):
         self.bootstrap_ip = bootstrap_ip
         self.wg = threading.Event()
         self.clients_sockets = []
@@ -16,7 +16,7 @@ class ONodeTCP:
         self.lock = threading.Lock()
         self.receive_queue = queue.Queue()
         self.process_queue = queue.Queue()
-        self.have_stream = False
+        self.have_stream = have_stream
         self.avo = {}
         self.netos = {} 
 
@@ -106,34 +106,7 @@ class ONodeTCP:
                         else:
                             message_data = data.decode()
                             
-
-                        if message_data == "Stream" or message_data == "Stop":
-                            for k, v in self.my_neighbours.items():
-                                if v["Ativo"] == True and client_address not in k:
-                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                                    client_socket.connect((k[0], 4000))
-                                    self.process_queue.put((message_data, client_socket, True))
-                                    break
-                        if message_data["id"] == "14":
-                            for k, v in self.my_neighbours.items():
-                                if v["Ativo"] == True and client_address not in k:
-                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                                    client_socket.connect((k[0], 4000))
-                                    message = Message("14",host_addr,(k[0],4000),"Stream")
-                                    #sent_message = json.dumps(message.__dict__)
-                                    self.process_queue.put((json.dumps(message.__dict__),client_socket,True))
-
-                        if message_data["id"] == "15":
-                            for k, v in self.my_neighbours.items():
-                                if v["Ativo"] == True and client_address not in k:
-                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                                    client_socket.connect((k[0], 4000))
-                                    message = Message("15",host_addr,(k[0],4000),"Stop")
-                                    #sent_message = json.dumps(message.__dict__)
-                                    self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
-
-
-                        elif message_data["id"] == "2":
+                        if message_data["id"] == "2":
                             info = message_data["data"]
                             result_string = json.loads(info)
 
@@ -214,8 +187,17 @@ class ONodeTCP:
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
                             #fazer aqui quando tem a stram - vai ser muito parecido com o tipo de processo 10
-                            #if self.have_stream:
+                            if self.have_stream:
+                                lista = [StreamId, src, time_now, soma_acumulada]
+                                mensagem = Message("10",host_addr,(src,4000),lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
+
+
+
+
+
         
+
                         elif message_data["id"] == "9": #entre nodos
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
                             StreamId,neto,time_sent_message,soma_acumulada_recebida = message_data["data"]
@@ -254,6 +236,12 @@ class ONodeTCP:
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
 
+                            if self.have_stream:
+                                lista = [StreamId, src, time_now, soma_acumulada]
+                                message = Message("10",host_addr,(src,4000),lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__), None,False))
+
+
                         elif message_data["id"] == "10":
                             StreamId,avo,filho = message_data["data"]
 
@@ -276,7 +264,6 @@ class ONodeTCP:
                             self.my_neighbours[next_node]["Ativo"] = True
                             self.my_neighbours[next_node]["Streams"][StreamId][neto]["Ativo"]=True
                             lista = [StreamId,host_addr,neto]
-                            print(f"\n\n alalalalala {next_node[0]}")
                             if isinstance(next_node,tuple):
                                 mensagem = Message("10",host_addr,(next_node[0],4000),lista)
                             elif isinstance(next_node,str):
@@ -288,7 +275,28 @@ class ONodeTCP:
 
 
                         #fazer para o tipo de dados 11 - quando pede para cnacelar
+                        elif message_data["id"] == "11":
+                            self.have_stream = False
 
+                            StreamId,filho = message_data["data"]
+
+                            src= message_data["src"]
+
+                            next_node = tuple()
+                            for n in self.my_neighbours.keys():
+                                if filho in n:
+                                    next_node = n
+
+
+                            #neto = self.escolher_melhor_neto(next_node,StreamId)
+                            self.my_neighbours[next_node]["Ativo"] = False
+                            neto=None
+                            for k,v in self.my_neighbours[next_node]["Streams"][StreamId]:
+                                if v["Ativo"] == True:
+                                    v["Ativo"] = False
+                                    neto = k
+                            lista = [StreamId,host_addr,neto]
+                            message = Message("11",host_addr,(next_node[0],4000),lista)
 
                         elif message_data["id"] == "12":
                             time_sent_message = message_data["data"]
@@ -300,6 +308,26 @@ class ONodeTCP:
                             for k,v in self.my_neighbours.items():
                                 if curr_time - v["last_received_time"] >fself.timeout_threshold:
                                     v["Vivo"] = False
+
+
+                        elif message_data["id"] == "14":
+                            for k, v in self.my_neighbours.items():
+                                if v["Ativo"] == True and client_address not in k:
+                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                    client_socket.connect((k[0], 4000))
+                                    message = Message("14",host_addr,(k[0],4000),"Stream")
+                                    #sent_message = json.dumps(message.__dict__)
+                                    self.process_queue.put((json.dumps(message.__dict__),client_socket,True))
+
+                        elif message_data["id"] == "15":
+                            for k, v in self.my_neighbours.items():
+                                if v["Ativo"] == True and client_address not in k:
+                                    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                    client_socket.connect((k[0], 4000))
+                                    message = Message("15",host_addr,(k[0],4000),"Stop")
+                                    #sent_message = json.dumps(message.__dict__)
+                                    self.process_queue.put((json.dumps(messagem.__dict__),client_socket,True))
+
 
 
                     except json.JSONDecodeError as e:

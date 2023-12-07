@@ -4,12 +4,13 @@ import time
 import queue
 
 class ONodeUDP:
-    def __init__(self,my_neighbours):
+    def __init__(self,my_neighbours,have_stream):
         self.receive_queue = queue.Queue()
         self.process_queue = queue.Queue()
         self.my_neighbours = my_neighbours
         self.wg = threading.Event()
         self.threads = []
+        self.have_stream = have_stream
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             self.server_socket.bind(("",3000))
@@ -20,11 +21,9 @@ class ONodeUDP:
     def receive_messages(self):
         try:
             while not self.wg.is_set():
-                data, remetente = self.server_socket.recvfrom(1024)
+                data, remetente = self.server_socket.recvfrom(20480)
                 print(f"UDP [Receive]: Received message from {remetente}: Pedido Recebido\n")
                 self.receive_queue.put((data,remetente[0]))
-                print(f"rem rem : {remetente}")
-                print(f"fsdklj : {remetente[0]}")
         except Exception as e:
             print(f"\nUDP : An error occurred while receiving messages: {e}")
 
@@ -33,7 +32,6 @@ class ONodeUDP:
             while not self.wg.is_set():
                 if not self.receive_queue.empty():
                     data, remetente = self.receive_queue.get()
-                    print("-----------------------------------------------------")
                     print(f"\nUDP [Process] : Going to process this message: pedido de stream")
 
                     dest = None
@@ -41,8 +39,6 @@ class ONodeUDP:
                     for k,v in self.my_neighbours.items():
                         if v["Ativo"] and remetente not in k:
                             dest = k
-                            print(f"\ndest dest dest: : : : : {dest}")
-
 
                     self.process_queue.put((data,dest))
         except Exception as e:
@@ -55,7 +51,6 @@ class ONodeUDP:
                 if not self.process_queue.empty():
                     send_soc = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
                     data,dest = self.process_queue.get()
-                    print(f"\n\n-----\n{dest}")
                     if(isinstance(dest,tuple)):
                         send_soc.sendto(data, (dest[0],3000))
                     elif(isinstance(dest,str)):

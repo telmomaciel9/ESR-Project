@@ -14,17 +14,18 @@ class ONode():
         self.threads = []
         #self.shared_manager = Manager()
         self.my_neighbours = dict()
+        self.have_stream = False
         self.rp_mode = rp_mode
         if self.rp_mode:
-            self.rp = RP(bootstrap_ip,self.my_neighbours)
+            self.rp = RP(bootstrap_ip,self.my_neighbours,self.have_stream)
         
         self.bootstrap_mode = bootstrap_mode
         if self.bootstrap_mode:
-            self.bootstrap= Bootstrap(self.my_neighbours)
+            self.bootstrap= Bootstrap(self.my_neighbours,self.have_stream)
     
-        self.ONode_udp = ONodeUDP(self.my_neighbours)
+        self.ONode_udp = ONodeUDP(self.my_neighbours,self.have_stream)
         if not self.rp_mode and not self.bootstrap_mode:
-            self.ONode_tcp = ONodeTCP(bootstrap_ip,self.my_neighbours)
+            self.ONode_tcp = ONodeTCP(bootstrap_ip,self.my_neighbours,self.have_stream)
 
     def start(self):        
         self.threads.append(threading.Thread(target=self.ONode_udp.start))

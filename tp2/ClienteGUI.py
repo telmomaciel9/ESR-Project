@@ -116,7 +116,6 @@ class ClienteGUI:
                 if self.playEvent.is_set():
                     break
             except:
-
                 self.rtpSocket.shutdown(socket.SHUT_RDWR)
                 self.rtpSocket.close()
                 break

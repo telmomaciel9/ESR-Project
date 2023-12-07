@@ -7,7 +7,7 @@ import bisect
 from Message import Message
 
 class RP():
-    def __init__(self, bootstrap_ip,my_neighbours):
+    def __init__(self, bootstrap_ip,my_neighbours,have_stream):
         self.bootstrap_ip=bootstrap_ip
 
         self.wg = threading.Event()
@@ -18,7 +18,7 @@ class RP():
 
         self.my_neighbours= my_neighbours
         self.netos = []
-        self.have_stream= False
+        self.have_stream= have_stream
 
         self.servidores = dict()
 

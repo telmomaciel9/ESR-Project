@@ -6,14 +6,14 @@ import queue
 from Message import Message
 
 class Bootstrap():
-    def __init__(self, my_neighbours):
+    def __init__(self, my_neighbours,have_stream):
         self.wg = threading.Event()
         self.lock = threading.Lock()
 
         self.receive_queue = queue.Queue()
         self.process_queue = queue.Queue()
 
-        self.have_stream = False
+        self.have_stream = have_stream
         self.clients = []
         self.my_neighbours= my_neighbours
         self.dic_with_neighbours = {}
@@ -210,6 +210,10 @@ class Bootstrap():
                                         mensagem = Message("9",host_addr,(key[0],4000),lista)
                                         self.process_queue.put((json.dumps(mensagem.__dict__), None,False))  # Fix the typo here
 
+                            if self.have_stream:
+                                lista = [StreamId,host_addr]
+                                mensagem = Message("10",host_addr,(src,4000),lista)
+                                self.process_queue.put((json.dumps(mensagem.__dict__),None,False))
                                    
                         elif message_data["id"] == "9": #entre nodos
                             #data - [timeStampAgora, somaAcumulada, Filho, id Flood]
@@ -271,7 +275,7 @@ class Bootstrap():
                             self.my_neighbours[next_node]["Ativo"] = True
                             self.my_neighbours[next_node]["Streams"][StreamId][neto]["Ativo"]=True
                             lista = [StreamId,host_addr,neto]
-                            print(f"\n\n alalalalala {next_node[0]}")
+
                             if isinstance(next_node,tuple):
                                 mensagem = Message("10",host_addr,(next_node[0],4000),lista)
                             elif isinstance(next_node,str):
